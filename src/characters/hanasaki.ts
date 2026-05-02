@@ -226,8 +226,8 @@ export const hanasaki: CharacterConfig = {
 …また、こうして話せたら嬉しいです。
 気をつけて帰ってくださいね。`,
   teaDateHidePortraitStrip: true,
-  teaDateEmptyBackgroundSrc: "/characters/hanasaki/cafe_empty.png",
-  teaDateWithCharacterBackgroundSrc: "/characters/hanasaki/cafe_with_him.png",
+  teaDateEmptyBackgroundSrc: "/characters/hanasaki/cafe_with_him_wide.png",
+  teaDateWithCharacterBackgroundSrc: "/characters/hanasaki/cafe_with_him_portrait.png",
   barDateWithCharacterBackgroundSrc: "/characters/hanasaki/bar_with_him.png",
   barDateSilenceHeroSrc: "/characters/hanasaki/bar_silence_profile.png",
   barDateSilenceHeroTurnMin: 4,

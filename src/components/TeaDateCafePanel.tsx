@@ -3,12 +3,14 @@
 import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ChatBubble } from "@/components/ChatBubble";
+import { HeartIndicator } from "@/components/HeartIndicator";
+import { BgmToggleButton } from "@/components/BgmPreferenceProvider";
 import { MessageInput } from "@/components/MessageInput";
 import { messageContentForGemini } from "@/lib/stamps";
 import { assistantTypingDelayMs, sleepMs } from "@/lib/replyLatency";
 import { interpolateUserName } from "@/lib/promptInterpolate";
 import { useTeaDateCafeAmbient } from "@/hooks/useTeaDateCafeAmbient";
-import type { Character, ChatResponseBody, Message } from "@/types";
+import type { AffinityPulse, Character, ChatResponseBody, Message } from "@/types";
 
 const DEFAULT_TEA_DATE_CAFE_INTRO =
   "あ、{userName}さん。お疲れさまです。\n" +
@@ -29,6 +31,7 @@ function newMsgId(): string {
 export type TeaDateCafePanelProps = {
   character: Character;
   affinity: number;
+  affinityPulse?: AffinityPulse | null;
   /** API の userName（クライアントは表示名または空） */
   userName: string;
   /** 冒頭などテンプレの `{userName}` 差し込み用（保存プロフィールの生名前） */
@@ -50,6 +53,7 @@ export type TeaDateCafePanelProps = {
 export function TeaDateCafePanel({
   character,
   affinity,
+  affinityPulse,
   userName,
   introTemplateUserName,
   portraitSrc,
@@ -286,7 +290,7 @@ export function TeaDateCafePanel({
 
   return (
     <div
-      className={`fixed inset-0 z-[100] flex flex-col bg-[#dbd2c9] backdrop-blur-sm ${
+      className={`fixed inset-0 z-[100] flex flex-col bg-[#f2ede8] ${
         leaving
           ? "pointer-events-none animate-scene-fade-out"
           : "animate-scene-fade-in"
@@ -295,42 +299,58 @@ export function TeaDateCafePanel({
       aria-label="お茶デート・喫茶店シーン"
       aria-busy={!entranceDone}
     >
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[#e8dfd6] via-[#ddd3c9] to-[#cfc4b9]" />
-
-      <header
-        className={`relative z-[1] flex shrink-0 items-center justify-between border-b border-slate-800/10 bg-[#d4cbc2]/92 px-4 py-3 text-slate-800 backdrop-blur-md shadow-sm transition-opacity duration-500 ${
-          entranceDone ? "opacity-100" : "opacity-0"
-        }`}
-      >
-        <p className="text-sm font-semibold tracking-wide">☕ 喫茶店</p>
-        <button
-          type="button"
-          onClick={() => interruptCafe()}
-          disabled={leaving || !entranceDone}
-          className="rounded-full bg-slate-900/10 px-3 py-1.5 text-xs font-medium backdrop-blur transition hover:bg-slate-900/15 disabled:opacity-40"
-        >
-          店を出る（中断）
-        </button>
+      {/* ヘッダー：3カラム（名前 / ハート / BGM+中断） */}
+      <header className="relative z-10 grid min-h-[3.25rem] shrink-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-x-2 border-b border-amber-900/10 bg-[#e8dfd6]/95 px-3 py-2 shadow-sm backdrop-blur-md sm:px-4">
+        {/* 左：キャラ名 */}
+        <div className="flex min-w-0 items-center gap-2">
+          {portraitSrc ? (
+            <div className="relative h-8 w-8 shrink-0 overflow-hidden rounded-full ring-1 ring-amber-900/20">
+              <Image src={portraitSrc} alt={character.name} fill sizes="32px" className="object-cover object-top" />
+            </div>
+          ) : null}
+          <div className="min-w-0 leading-tight">
+            <p className="truncate text-sm font-semibold text-slate-800">{character.name}</p>
+            <p className="truncate text-[10px] text-slate-500">☕ 喫茶店</p>
+          </div>
+        </div>
+        {/* 中央：ハート */}
+        <div className="flex justify-center">
+          <HeartIndicator affinity={affinity} pulse={affinityPulse ?? null} />
+        </div>
+        {/* 右：BGM + 中断 */}
+        <div className="flex min-w-0 items-center justify-end gap-1.5">
+          <BgmToggleButton />
+          <button
+            type="button"
+            onClick={() => interruptCafe()}
+            disabled={leaving || !entranceDone}
+            className="shrink-0 rounded-full border border-slate-400/40 bg-white/60 px-2 py-1 text-[10px] font-medium text-slate-700 backdrop-blur transition hover:bg-white/80 disabled:opacity-40 sm:px-3 sm:text-[11px]"
+          >
+            中断
+          </button>
+        </div>
       </header>
 
-      {showSceneHero ? (
-        <div
-          className={`relative z-[1] shrink-0 px-4 pb-3 pt-4 transition-opacity duration-500 ${
-            entranceDone ? "opacity-100" : "opacity-40"
-          }`}
-        >
-          <div className="mx-auto flex w-full max-w-lg justify-center">
-            <div className="relative isolate mx-auto h-[min(48vh,460px)] w-full max-w-[380px] overflow-hidden rounded-2xl shadow-[0_24px_60px_-12px_rgba(0,0,0,0.35)] ring-2 ring-white/70">
+      {/* メインコンテンツ：画像 ＋ 会話 */}
+      <div className="relative z-[1] flex min-h-0 flex-1 flex-col overflow-hidden">
+        {/* 喫茶店の1枚絵（中央に配置） */}
+        {showSceneHero ? (
+          <div className={`shrink-0 px-4 pb-2 pt-3 transition-opacity duration-700 ${entranceDone ? "opacity-100" : "opacity-60"}`}>
+            <div className="relative isolate mx-auto overflow-hidden rounded-2xl shadow-[0_8px_32px_-8px_rgba(0,0,0,0.28)] ring-1 ring-white/80"
+              style={{ maxWidth: "min(92vw, 420px)", height: "min(42vh, 400px)" }}
+            >
+              {/* 1枚目：広い喫茶店（横長）*/}
               {hasPairCafe && emptyCafeSrc ? (
                 <Image
                   src={emptyCafeSrc}
-                  alt=""
+                  alt="喫茶店"
                   fill
-                  sizes="(max-width: 768px) 92vw, 380px"
+                  sizes="(max-width: 768px) 92vw, 420px"
                   priority
                   className="object-cover object-center"
                 />
               ) : null}
+              {/* 2枚目：彼がいる（縦長・クロスフェード）*/}
               {hasPairCafe && withCafeSrc ? (
                 <div
                   className="absolute inset-0"
@@ -343,59 +363,61 @@ export function TeaDateCafePanel({
                 >
                   <Image
                     src={withCafeSrc}
-                    alt=""
+                    alt="花咲さんと喫茶店"
                     fill
-                    sizes="(max-width: 768px) 92vw, 380px"
+                    sizes="(max-width: 768px) 92vw, 420px"
                     priority={pairLayerVisible}
-                    className="object-cover object-center"
+                    className="object-cover object-top"
                   />
                 </div>
               ) : null}
               {resolvedSingleBg ? (
                 <Image
                   src={resolvedSingleBg}
-                  alt=""
+                  alt="喫茶店"
                   fill
-                  sizes="(max-width: 768px) 92vw, 380px"
+                  sizes="(max-width: 768px) 92vw, 420px"
                   priority
                   className="object-cover object-center"
                 />
               ) : null}
             </div>
           </div>
-        </div>
-      ) : null}
-
-      <div
-        ref={scrollRef}
-        className={`scrollbar-thin relative z-[1] mx-auto min-h-0 w-full max-w-lg flex-1 space-y-3 overflow-y-auto px-4 py-3 transition-opacity duration-500 ${
-          entranceDone ? "opacity-100" : "opacity-0"
-        }`}
-      >
-        {messages.map((m) => (
-          <ChatBubble
-            key={m.id}
-            message={m}
-            characterName={character.displayName}
-            characterAvatarSrc={portraitSrc ?? undefined}
-            characterAvatarAlt={character.name}
-          />
-        ))}
-        {sending && (
-          <p className="px-2 text-xs text-slate-600 drop-shadow-sm">
-            {character.displayName}が考えています…
-          </p>
-        )}
-        {error ? (
-          <div className="rounded-xl border border-red-400/70 bg-red-50 px-3 py-2 text-xs text-red-900">
-            {error}
-          </div>
         ) : null}
+
+        {/* スクロール可能な会話エリア */}
+        <div
+          ref={scrollRef}
+          className={`scrollbar-thin min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3 transition-opacity duration-500 ${
+            entranceDone ? "opacity-100" : "opacity-0"
+          }`}
+        >
+          {messages.map((m) => (
+            <ChatBubble
+              key={m.id}
+              message={m}
+              characterName={character.displayName}
+              characterAvatarSrc={portraitSrc ?? undefined}
+              characterAvatarAlt={character.name}
+            />
+          ))}
+          {sending && (
+            <p className="px-2 text-xs text-slate-600">
+              {character.displayName}が考えています…
+            </p>
+          )}
+          {error ? (
+            <div className="rounded-xl border border-red-400/70 bg-red-50 px-3 py-2 text-xs text-red-900">
+              {error}
+            </div>
+          ) : null}
+        </div>
       </div>
 
+      {/* フッター：入力エリア */}
       <footer
-        className={`relative z-[1] mx-auto mt-auto flex w-full max-w-lg shrink-0 flex-col gap-2 border-t border-slate-800/10 bg-[#d4cbc2]/90 px-3 py-3 backdrop-blur-md shadow-[0_-8px_30px_-12px_rgba(0,0,0,0.12)] transition-opacity duration-500 ${
-          entranceDone ? "opacity-100" : "opacity-0"
+        className={`relative z-10 mt-auto shrink-0 flex-col gap-2 border-t border-amber-900/10 bg-[#e8dfd6]/95 px-3 py-3 backdrop-blur-md shadow-[0_-4px_20px_-8px_rgba(0,0,0,0.12)] transition-opacity duration-500 ${
+          entranceDone ? "opacity-100 flex" : "opacity-0 hidden"
         }`}
       >
         {showLeavePrompt ? (
@@ -414,17 +436,13 @@ export function TeaDateCafePanel({
         !leaving &&
         !showLeavePrompt &&
         entranceDone ? (
-          <p className="text-center text-[11px] font-medium text-slate-700">
-            あと{" "}
-            <span className="font-semibold text-slate-900">
-              {minTurns - turnsInScene}
-            </span>{" "}
-            ターンで「帰りますか」が選べます
+          <p className="text-center text-[11px] text-slate-600">
+            あと <span className="font-semibold text-slate-800">{minTurns - turnsInScene}</span> ターンで「帰りますか」が選べます
           </p>
         ) : null}
 
         {turnsInScene >= maxTurns && !leaving && entranceDone ? (
-          <p className="text-center text-[11px] font-medium text-slate-700">
+          <p className="text-center text-[11px] text-slate-600">
             楽しい時間だったね。また連絡するね…（自動で席を立ちます）
           </p>
         ) : null}

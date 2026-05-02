@@ -80,6 +80,7 @@ export interface ChatExperienceProps {
 
 const MESSAGES_PREFIX = "messages_";
 const PROPOSAL_PREFIX = "proposal_";
+const AWAITING_PREFIX = "awaiting_outing_";
 
 const DEFAULT_TEA_INVITE_USER_MESSAGE =
   "今度、お茶でも飲みに行きませんか？";
@@ -163,10 +164,34 @@ export default function ChatExperience({
     intimacyPrevAffinityRef.current = null;
   }, [character.id]);
 
-  /** お茶承諾後の「☕ 一緒にお茶しに行く」待ち状態 */
-  const [awaitingTeaOuting, setAwaitingTeaOuting] = useState(false);
-  /** 飲み承諾後のバー入室待ち */
-  const [awaitingDrinkOuting, setAwaitingDrinkOuting] = useState(false);
+  /** お茶承諾後の「☕ 一緒にお茶しに行く」待ち状態（localStorage で永続化） */
+  const [awaitingTeaOuting, setAwaitingTeaOutingRaw] = useState(false);
+  /** 飲み承諾後のバー入室待ち（localStorage で永続化） */
+  const [awaitingDrinkOuting, setAwaitingDrinkOutingRaw] = useState(false);
+
+  const setAwaitingTeaOuting = useCallback((val: boolean) => {
+    setAwaitingTeaOutingRaw(val);
+    try {
+      if (val) {
+        window.localStorage.setItem(`${AWAITING_PREFIX}${character.id}`, "tea");
+      } else {
+        const cur = window.localStorage.getItem(`${AWAITING_PREFIX}${character.id}`);
+        if (cur === "tea") window.localStorage.removeItem(`${AWAITING_PREFIX}${character.id}`);
+      }
+    } catch { /* ignore */ }
+  }, [character.id]);
+
+  const setAwaitingDrinkOuting = useCallback((val: boolean) => {
+    setAwaitingDrinkOutingRaw(val);
+    try {
+      if (val) {
+        window.localStorage.setItem(`${AWAITING_PREFIX}${character.id}`, "drink");
+      } else {
+        const cur = window.localStorage.getItem(`${AWAITING_PREFIX}${character.id}`);
+        if (cur === "drink") window.localStorage.removeItem(`${AWAITING_PREFIX}${character.id}`);
+      }
+    } catch { /* ignore */ }
+  }, [character.id]);
   /** LINE / 店シーンの進行（バーは将来 `mode: "bar"` で拡張） */
   const [sceneState, setSceneState] = useState<SceneState>(() =>
     lineSceneState()
@@ -295,6 +320,13 @@ export default function ChatExperience({
       // ignore
     }
     setHistoryHydrated(true);
+
+    // お茶・飲みの「承諾後ボタン」状態を復元
+    try {
+      const outing = window.localStorage.getItem(`${AWAITING_PREFIX}${character.id}`);
+      if (outing === "tea") setAwaitingTeaOutingRaw(true);
+      else if (outing === "drink") setAwaitingDrinkOutingRaw(true);
+    } catch { /* ignore */ }
   }, [character.id]);
 
   useEffect(() => {
@@ -642,6 +674,7 @@ export default function ChatExperience({
       window.localStorage.removeItem(`date_progress_${character.id}`);
       window.localStorage.removeItem(`${MESSAGES_PREFIX}${character.id}`);
       window.localStorage.removeItem(`affinity_${character.id}`);
+      window.localStorage.removeItem(`${AWAITING_PREFIX}${character.id}`);
       clearCachedAnalysis(character.id);
       clearIntimateSecretShown(character.id);
     }
@@ -1099,6 +1132,7 @@ export default function ChatExperience({
           key={teaDateSessionKey}
           character={character}
           affinity={affinity}
+          affinityPulse={affinityPulse}
           userName={chatUserName}
           introTemplateUserName={userProfile?.name ?? ""}
           portraitSrc={teaDatePortraitSrc}
