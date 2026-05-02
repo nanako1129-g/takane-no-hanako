@@ -3,17 +3,27 @@
 import Image from "next/image";
 import Link from "next/link";
 import { notFound, useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AffinityBar } from "@/components/AffinityBar";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ChatBubble } from "@/components/ChatBubble";
 import { CharacterPortrait } from "@/components/CharacterPortrait";
+import { DateInviteButtons } from "@/components/DateInviteButtons";
+import { HeartIndicator } from "@/components/HeartIndicator";
 import { MessageInput } from "@/components/MessageInput";
 import { StampPicker } from "@/components/StampPicker";
+import { UnlockToast } from "@/components/UnlockToast";
 import {
   getCharacter,
   pickCharacterPortrait,
 } from "@/characters";
 import { clearCachedAnalysis } from "@/lib/analysisCache";
+import {
+  canTriggerProposal,
+  evaluateUnlocks,
+  incrementDateCount,
+  initialDateProgress,
+  loadDateProgress,
+  saveDateProgress,
+} from "@/lib/dateProgress";
 import {
   messageContentForGemini,
   getStamp as getStampFromCatalog,
@@ -21,9 +31,13 @@ import {
 } from "@/lib/stamps";
 import { useAffinity } from "@/hooks/useAffinity";
 import type {
+  AffinityPulse,
   ChatMode,
   ChatResponseBody,
+  DateInviteType,
+  DateProgress,
   Message,
+  ProposalState,
   SceneEvent,
 } from "@/types";
 
@@ -36,6 +50,17 @@ export interface ChatExperienceProps {
 }
 
 const MESSAGES_PREFIX = "messages_";
+const PROPOSAL_PREFIX = "proposal_";
+
+const DEFAULT_TEA_INVITE_USER_MESSAGE =
+  "今度、お茶でも飲みに行きませんか？";
+const DEFAULT_DRINK_INVITE_USER_MESSAGE =
+  "今度、お酒でも飲みに行きませんか？";
+
+function clampAffinity(n: number): number {
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(0, Math.min(100, Math.round(n)));
+}
 
 function newId() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -53,16 +78,107 @@ export default function ChatExperience({
   if (!character) notFound();
 
   const router = useRouter();
-  const { affinity, applyChange, reset, hydrated } = useAffinity(
-    character.id,
-    character.initialAffinity
-  );
+  const {
+    affinity,
+    applyChange,
+    reset,
+    setAffinity,
+    hydrated: affinityHydrated,
+  } = useAffinity(character.id, character.initialAffinity);
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [historyHydrated, setHistoryHydrated] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const [dateProgress, setDateProgress] =
+    useState<DateProgress>(initialDateProgress);
+  const [affinityPulse, setAffinityPulse] = useState<AffinityPulse | null>(
+    null
+  );
+  const [unlockToast, setUnlockToast] = useState<string | null>(null);
+  const [pendingInviteAcceptance, setPendingInviteAcceptance] =
+    useState<DateInviteType | null>(null);
+
+  const proposalThreshold = character.proposalThreshold;
+  const proposalMessage = character.proposalMessage?.trim();
+
+  /** 「もう少し考える」後は true を維持（通常返答後に false に戻して再プロポーズ可能に） */
+  const [proposalDelivered, setProposalDelivered] = useState(false);
+  const [proposalLSBootstrapped, setProposalLSBootstrapped] = useState(false);
+  const [proposalChoiceMsgId, setProposalChoiceMsgId] = useState<string | null>(
+    null
+  );
+
+  /** proposal_${charId} の復元 */
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = window.localStorage.getItem(
+        `${PROPOSAL_PREFIX}${character.id}`
+      );
+      if (raw) {
+        const parsed = JSON.parse(raw) as Partial<ProposalState>;
+        setProposalDelivered(Boolean(parsed.delivered));
+      }
+    } catch {
+      // ignore
+    }
+    setProposalLSBootstrapped(true);
+  }, [character.id]);
+
+  /** ProposalState を永続（isReady は好感度から都度算出） */
+  useEffect(() => {
+    if (typeof window === "undefined" || !proposalLSBootstrapped) return;
+    const t = proposalThreshold;
+    const payload: ProposalState = {
+      isReady: typeof t === "number" ? affinity >= t : false,
+      delivered: proposalDelivered,
+    };
+    try {
+      window.localStorage.setItem(
+        `${PROPOSAL_PREFIX}${character.id}`,
+        JSON.stringify(payload)
+      );
+    } catch {
+      // ignore
+    }
+  }, [
+    affinity,
+    proposalDelivered,
+    proposalThreshold,
+    proposalLSBootstrapped,
+    character.id,
+  ]);
+
+  /** localStorage はレンダーの save より先に反映（useEffect だけだと初回ゼロ上書きの恐れがある） */
+  useLayoutEffect(() => {
+    setDateProgress(loadDateProgress(character.id));
+  }, [character.id]);
+
+  useEffect(() => {
+    saveDateProgress(character.id, dateProgress);
+  }, [character.id, dateProgress]);
+
+  /** 閾値未満に落ちたら delivered を初期化（好感度復元前のチラ見えでの誤リセットは抑制） */
+  useEffect(() => {
+    const t = proposalThreshold;
+    if (
+      typeof t !== "number" ||
+      !proposalLSBootstrapped ||
+      !affinityHydrated
+    )
+      return;
+    if (affinity < t) setProposalDelivered(false);
+  }, [
+    affinity,
+    proposalThreshold,
+    proposalLSBootstrapped,
+    affinityHydrated,
+  ]);
+
+  const proposalPending = proposalChoiceMsgId !== null;
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -74,6 +190,8 @@ export default function ChatExperience({
         const parsed = JSON.parse(raw) as Message[];
         if (Array.isArray(parsed)) {
           setMessages(parsed);
+          const pending = parsed.find((m) => m.proposalChoices);
+          setProposalChoiceMsgId(pending?.id ?? null);
         }
       }
     } catch {
@@ -115,8 +233,44 @@ export default function ChatExperience({
   }, [messages, sending]);
 
   const sendUserRound = useCallback(
-    async (userMsg: Message) => {
+    async (
+      userMsg: Message,
+      opts?: {
+        inviteAcceptance?: DateInviteType;
+        systemPromptOverride?: string;
+      }
+    ) => {
       setError(null);
+
+      const t = proposalThreshold;
+      const proposeText = proposalMessage;
+      const inviteAcceptance = opts?.inviteAcceptance;
+      const systemPromptOverride = opts?.systemPromptOverride?.trim();
+
+      const proposeGate =
+        typeof t === "number" &&
+        Boolean(proposeText) &&
+        !proposalDelivered &&
+        !messages.some((m) => m.proposalChoices) &&
+        canTriggerProposal(affinity, dateProgress, character);
+
+      if (proposeGate && userMsg.role === "user") {
+        setSending(true);
+        setMessages((prev) => [...prev, userMsg]);
+        const aid = newId();
+        const assistantProposal: Message = {
+          id: aid,
+          role: "assistant",
+          content: proposeText ?? "",
+          createdAt: Date.now(),
+          proposalChoices: true,
+        };
+        setMessages((prev) => [...prev, assistantProposal]);
+        setProposalChoiceMsgId(aid);
+        setSending(false);
+        return;
+      }
+
       setSending(true);
 
       const historyForApi = messages.map((m) => ({
@@ -127,15 +281,19 @@ export default function ChatExperience({
       setMessages((prev) => [...prev, userMsg]);
 
       try {
+        const body: Record<string, unknown> = {
+          charId: character.id,
+          messages: historyForApi,
+          userMessage: messageContentForGemini(userMsg),
+          affinity,
+          ...(inviteAcceptance ? { inviteType: inviteAcceptance } : {}),
+          ...(systemPromptOverride ? { systemPromptOverride } : {}),
+        };
+
         const res = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            charId: character.id,
-            messages: historyForApi,
-            userMessage: messageContentForGemini(userMsg),
-            affinity,
-          }),
+          body: JSON.stringify(body),
         });
 
         if (!res.ok) {
@@ -147,6 +305,10 @@ export default function ChatExperience({
 
         const data = (await res.json()) as ChatResponseBody;
 
+        const delta =
+          typeof data.affinityChange === "number" ? data.affinityChange : 0;
+        const affinityAfterGemini = clampAffinity(affinity + delta);
+
         const assistantMsg: Message = {
           id: newId(),
           role: "assistant",
@@ -157,8 +319,67 @@ export default function ChatExperience({
         };
 
         setMessages((prev) => [...prev, assistantMsg]);
+
         if (typeof data.affinityChange === "number") {
           applyChange(data.affinityChange);
+        }
+
+        const change =
+          typeof data.affinityChange === "number" ? data.affinityChange : 0;
+        if (change !== 0) {
+          setAffinityPulse({ delta: change, timestamp: Date.now() });
+        }
+
+        const newAffinity = clampAffinity(affinity + change);
+
+        let toastTea = false;
+        let toastDrink = false;
+        let toastDrinkAfterInvite = false;
+
+        setDateProgress((prevProgress) => {
+          const nextProgress = evaluateUnlocks(newAffinity, prevProgress, character);
+          if (!prevProgress.unlockedTea && nextProgress.unlockedTea) {
+            toastTea = true;
+          }
+          if (!prevProgress.unlockedDrink && nextProgress.unlockedDrink) {
+            toastDrink = true;
+          }
+
+          if (!inviteAcceptance) {
+            return nextProgress;
+          }
+
+          const incremented = incrementDateCount(nextProgress, inviteAcceptance);
+          const reevaluated = evaluateUnlocks(newAffinity, incremented, character);
+          if (
+            !incremented.unlockedDrink &&
+            reevaluated.unlockedDrink
+          ) {
+            toastDrinkAfterInvite = true;
+          }
+          return reevaluated;
+        });
+
+        queueMicrotask(() => {
+          const openedTea = toastTea;
+          const openedDrink = toastDrink || toastDrinkAfterInvite;
+          if (openedTea && openedDrink) {
+            setUnlockToast(
+              "🍵🍶 「お茶に誘う」「飲みに誘う」が解放されました"
+            );
+          } else if (openedTea) {
+            setUnlockToast("🍵 「お茶に誘う」が解放されました");
+          } else if (openedDrink) {
+            setUnlockToast("🍶 「飲みに誘う」が解放されました");
+          }
+        });
+
+        if (
+          typeof t === "number" &&
+          affinityAfterGemini >= t &&
+          proposalDelivered
+        ) {
+          setProposalDelivered(false);
         }
       } catch (err) {
         console.error(err);
@@ -171,11 +392,26 @@ export default function ChatExperience({
         setSending(false);
       }
     },
-    [affinity, applyChange, character.id, messages]
+    [
+      affinity,
+      applyChange,
+      character,
+      dateProgress,
+      messages,
+      proposalDelivered,
+      proposalMessage,
+      proposalThreshold,
+    ]
   );
 
   const sendMessage = useCallback(
-    async (text: string) => {
+    async (
+      text: string,
+      opts?: {
+        inviteAcceptance?: DateInviteType;
+        systemPromptOverride?: string;
+      }
+    ) => {
       const trimmed = text.trim();
       if (!trimmed) return;
 
@@ -186,7 +422,7 @@ export default function ChatExperience({
         createdAt: Date.now(),
       };
 
-      await sendUserRound(userMsg);
+      await sendUserRound(userMsg, opts);
     },
     [sendUserRound]
   );
@@ -218,12 +454,90 @@ export default function ChatExperience({
       return;
     }
     setMessages([]);
+    setProposalChoiceMsgId(null);
+    setProposalDelivered(false);
+    setDateProgress(initialDateProgress);
+    setAffinityPulse(null);
+    setUnlockToast(null);
     reset();
     if (typeof window !== "undefined") {
       window.localStorage.removeItem(`${MESSAGES_PREFIX}${character.id}`);
+      window.localStorage.removeItem(`${PROPOSAL_PREFIX}${character.id}`);
+      window.localStorage.removeItem(`date_progress_${character.id}`);
       clearCachedAnalysis(character.id);
     }
   }, [character.id, reset]);
+
+  const handleInvite = useCallback(
+    async (type: DateInviteType) => {
+      const userMessage =
+        type === "tea"
+          ? character.teaInviteUserMessage?.trim() ||
+            DEFAULT_TEA_INVITE_USER_MESSAGE
+          : character.drinkInviteUserMessage?.trim() ||
+            DEFAULT_DRINK_INVITE_USER_MESSAGE;
+
+      const systemPromptOverride =
+        type === "tea"
+          ? character.teaAcceptanceSystemPrompt?.trim()
+          : character.drinkAcceptanceSystemPrompt?.trim();
+
+      setPendingInviteAcceptance(type);
+      try {
+        await sendMessage(userMessage, {
+          inviteAcceptance: type,
+          ...(systemPromptOverride
+            ? { systemPromptOverride }
+            : {}),
+        });
+      } finally {
+        setPendingInviteAcceptance(null);
+      }
+    },
+    [
+      character.drinkAcceptanceSystemPrompt,
+      character.drinkInviteUserMessage,
+      character.teaAcceptanceSystemPrompt,
+      character.teaInviteUserMessage,
+      sendMessage,
+    ]
+  );
+
+  const handleProposalAccept = useCallback(() => {
+    router.push(`/ending/${character.id}`);
+  }, [character.id, router]);
+
+  const handleProposalDecline = useCallback(() => {
+    setProposalDelivered(true);
+    setProposalChoiceMsgId(null);
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.proposalChoices ? { ...m, proposalChoices: false } : m
+      )
+    );
+  }, []);
+
+  const handleDebugAffinity95 = useCallback(() => {
+    const target = clampAffinity(95);
+    setAffinity(target);
+    let toastTea = false;
+    let toastDrink = false;
+    setDateProgress((prev) => {
+      const next = evaluateUnlocks(target, prev, character);
+      if (!prev.unlockedTea && next.unlockedTea) toastTea = true;
+      if (!prev.unlockedDrink && next.unlockedDrink) toastDrink = true;
+      return next;
+    });
+    queueMicrotask(() => {
+      if (toastTea && toastDrink) {
+        setUnlockToast("🍵🍶 「お茶に誘う」「飲みに誘う」が解放されました");
+      } else if (toastTea) {
+        setUnlockToast("🍵 「お茶に誘う」が解放されました");
+      } else if (toastDrink) {
+        setUnlockToast("🍶 「飲みに誘う」が解放されました");
+      }
+    });
+  }, [character, setAffinity]);
 
   const goAnalyze = useCallback(() => {
     router.push(`/analysis/${character.id}`);
@@ -239,6 +553,8 @@ export default function ChatExperience({
   const shellToneClass =
     mode === "scene" ? "bg-rose-50/40" : "bg-rose-50/40";
 
+  const isLoading = sending;
+
   return (
     <main
       data-chat-root
@@ -248,6 +564,10 @@ export default function ChatExperience({
         : {})}
       className={`relative mx-auto grid h-dvh w-full max-w-full grid-rows-[auto_1fr] bg-rose-50/40 md:max-w-6xl md:grid-cols-[2fr_3fr] md:grid-rows-1 ${shellToneClass}`}
     >
+      <UnlockToast
+        message={unlockToast}
+        onDismiss={() => setUnlockToast(null)}
+      />
       {mode === "scene" ? (
         <div
           aria-hidden
@@ -277,7 +597,8 @@ export default function ChatExperience({
 
       {/* チャット本体 */}
       <section className="flex min-h-0 flex-col overflow-hidden bg-rose-50/40">
-        <header className="sticky top-0 z-10 flex shrink-0 items-center gap-3 border-b border-rose-100 bg-white/90 px-4 py-3 backdrop-blur">
+        {/* ヘッダー（ハート好感度インジケータ） */}
+        <header className="sticky top-0 z-10 flex shrink-0 flex-wrap items-center gap-2 border-b border-rose-100 bg-white/90 px-3 py-2 backdrop-blur sm:gap-3 sm:px-4 sm:py-3">
           <Link
             href="/"
             className="rounded-full px-2 py-1 text-sm text-slate-500 transition hover:bg-rose-50 hover:text-rose-500"
@@ -285,7 +606,7 @@ export default function ChatExperience({
           >
             ‹
           </Link>
-          <div className="flex flex-1 items-center gap-2">
+          <div className="flex min-w-0 flex-1 items-center gap-2">
             <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full bg-gradient-to-br from-rose-100 to-pink-200 ring-1 ring-rose-100">
               {headerPortraitSrc ? (
                 <Image
@@ -298,33 +619,44 @@ export default function ChatExperience({
                 />
               ) : null}
             </div>
-            <div className="leading-tight">
-              <p className="text-sm font-semibold text-slate-800">
+            <div className="min-w-0 leading-tight">
+              <p className="truncate text-sm font-semibold text-slate-800">
                 {character.name}
               </p>
-              <p className="text-[11px] text-slate-500">
+              <p className="truncate text-[11px] text-slate-500">
                 {character.occupation}
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={handleReset}
-            className="rounded-full border border-slate-200 px-2.5 py-1 text-[11px] text-slate-500 transition hover:border-rose-200 hover:text-rose-500"
-          >
-            リセット
-          </button>
+          <div className="ml-auto flex shrink-0 items-center gap-2 sm:ml-0">
+            <HeartIndicator affinity={affinity} pulse={affinityPulse} />
+            <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
+              {process.env.NODE_ENV === "development" ? (
+                <button
+                  type="button"
+                  onClick={handleDebugAffinity95}
+                  className="rounded-full border border-amber-200 bg-amber-50/90 px-2 py-0.5 text-[10px] font-medium text-amber-900 transition hover:bg-amber-100"
+                >
+                  DEBUG: 好感度95
+                </button>
+              ) : null}
+              <button
+                type="button"
+                onClick={handleReset}
+                className="rounded-full border border-slate-200 px-2.5 py-1 text-[11px] text-slate-500 transition hover:border-rose-200 hover:text-rose-500"
+              >
+                リセット
+              </button>
+            </div>
+          </div>
         </header>
 
-        <div className="shrink-0 px-4 pb-2 pt-3">
-          <AffinityBar value={affinity} />
-        </div>
-
+        {/* メッセージ一覧 */}
         <div
           ref={scrollRef}
           className="scrollbar-thin min-h-0 flex-1 space-y-4 overflow-y-auto px-4 pb-4 pt-2"
         >
-          {!historyHydrated || !hydrated ? (
+          {!historyHydrated || !affinityHydrated ? (
             <p className="py-8 text-center text-xs text-slate-400">
               読み込み中…
             </p>
@@ -336,6 +668,14 @@ export default function ChatExperience({
                 characterName={character.displayName}
                 characterAvatarSrc={headerPortraitSrc ?? undefined}
                 characterAvatarAlt={character.name}
+                proposalActions={
+                  m.proposalChoices && m.id === proposalChoiceMsgId
+                    ? {
+                        onAccept: handleProposalAccept,
+                        onDecline: handleProposalDecline,
+                      }
+                    : undefined
+                }
               />
             ))
           )}
@@ -361,9 +701,18 @@ export default function ChatExperience({
           data-chat-footer
           data-input-mode={mode}
         >
+          {/* 入力エリア手前: お茶／飲みに誘う */}
+          <DateInviteButtons
+            progress={dateProgress}
+            onInvite={(t) => void handleInvite(t)}
+            disabled={
+              isLoading || proposalPending || pendingInviteAcceptance !== null
+            }
+          />
+          {/* スタンプ */}
           <StampPicker
             stamps={stampDefinitions}
-            disabled={sending}
+            disabled={isLoading || proposalPending}
             onPick={handleStampPick}
           />
           {mode === "call" ? (
@@ -373,9 +722,10 @@ export default function ChatExperience({
               data-voice-input-slot="reserved"
             />
           ) : null}
+          {/* 入力欄 */}
           <MessageInput
             onSubmit={sendMessage}
-            disabled={sending}
+            disabled={isLoading || proposalPending}
             placeholder={
               mode === "call"
                 ? "通話モードは暫定でテキスト入力（音声は今後対応）"

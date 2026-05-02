@@ -13,6 +13,10 @@ interface ChatBubbleProps {
   /** 相手（assistant）メッセージ左に表示する顔アイコン（LINE風） */
   characterAvatarSrc?: string;
   characterAvatarAlt?: string;
+  proposalActions?: {
+    onAccept: () => void;
+    onDecline: () => void;
+  };
 }
 
 export function ChatBubble({
@@ -20,6 +24,7 @@ export function ChatBubble({
   characterName,
   characterAvatarSrc,
   characterAvatarAlt = "相手",
+  proposalActions,
 }: ChatBubbleProps) {
   const [open, setOpen] = useState(false);
   const isUser = message.role === "user";
@@ -98,12 +103,33 @@ export function ChatBubble({
           {/* 吹き出しと時刻だけ横並び（内心ボタンは下段へ） */}
           <div className="flex w-full items-end gap-2">
             <div className="min-w-0 max-w-[min(100%,calc(100%-4rem))] flex-1">
-              <Bubble role={message.role}>{message.content}</Bubble>
+              <Bubble role={message.role} preserveLines={Boolean(message.proposalChoices)}>
+                {message.content}
+              </Bubble>
             </div>
             <span className="shrink-0 self-end pb-[3px] font-mono text-[11px] leading-none tracking-tight text-slate-400">
               {timeLabel}
             </span>
           </div>
+
+          {message.proposalChoices && proposalActions ? (
+            <div className="mt-2 flex w-full flex-wrap gap-2 pl-0 md:max-w-[min(100%,420px)]">
+              <button
+                type="button"
+                onClick={proposalActions.onAccept}
+                className="rounded-full bg-gradient-to-r from-rose-500 to-pink-500 px-3.5 py-1.5 text-[11px] font-semibold text-white shadow-sm transition hover:from-rose-600 hover:to-pink-600"
+              >
+                💍 プロポーズを受ける
+              </button>
+              <button
+                type="button"
+                onClick={proposalActions.onDecline}
+                className="rounded-full border border-slate-200 bg-white px-3.5 py-1.5 text-[11px] font-medium text-slate-600 shadow-sm transition hover:border-rose-200 hover:bg-rose-50"
+              >
+                もう少し考える
+              </button>
+            </div>
+          ) : null}
 
           {hasInner && (
             <button
@@ -130,9 +156,11 @@ export function ChatBubble({
 
 function Bubble({
   role,
+  preserveLines,
   children,
 }: {
   role: Message["role"];
+  preserveLines?: boolean;
   children: ReactNode;
 }) {
   if (role === "user") {
@@ -143,7 +171,9 @@ function Bubble({
     );
   }
   return (
-    <div className="rounded-2xl rounded-bl-md border border-slate-200 bg-white px-4 py-2.5 text-sm leading-relaxed text-slate-800 shadow-sm">
+    <div
+      className={`rounded-2xl rounded-bl-md border border-slate-200 bg-white px-4 py-2.5 text-sm leading-relaxed text-slate-800 shadow-sm${preserveLines ? " whitespace-pre-wrap" : ""}`}
+    >
       {children}
     </div>
   );

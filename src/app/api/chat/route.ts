@@ -4,7 +4,9 @@ import {
   sanitizeAffinity,
   sanitizeCharId,
   sanitizeConversationMessages,
+  sanitizeInviteType,
   sanitizeModelReply,
+  sanitizeSystemPromptOverride,
   sanitizeUserMessage,
   LIMITS,
 } from "@/lib/apiValidation";
@@ -53,6 +55,8 @@ export async function POST(req: Request) {
   }
 
   const affinity = sanitizeAffinity(b.affinity);
+  const inviteAcceptance = sanitizeInviteType(b.inviteType);
+  const systemPromptOverride = sanitizeSystemPromptOverride(b.systemPromptOverride);
   const messages = sanitizeConversationMessages(
     b.messages,
     LIMITS.MAX_CHAT_HISTORY_MESSAGES
@@ -65,7 +69,21 @@ export async function POST(req: Request) {
     );
   }
 
-  const surfaceModel = getModel(buildSurfacePrompt(character));
+  const inviteFallback =
+    inviteAcceptance === "tea"
+      ? character.teaAcceptanceSystemPrompt?.trim() ?? ""
+      : inviteAcceptance === "drink"
+        ? character.drinkAcceptanceSystemPrompt?.trim() ?? ""
+        : "";
+
+  const secondary = systemPromptOverride ?? inviteFallback ?? "";
+
+  const surfaceSystem = [
+    buildSurfacePrompt(character),
+    secondary,
+  ].filter(Boolean).join("\n\n");
+
+  const surfaceModel = getModel(surfaceSystem);
   const innerModel = getModel(buildInnerPrompt(character));
 
   const surfacePromise = (async () => {

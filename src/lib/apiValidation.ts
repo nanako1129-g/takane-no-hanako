@@ -8,6 +8,7 @@ export const LIMITS = {
   MAX_CHAT_HISTORY_MESSAGES: 80,
   MAX_ANALYSIS_MESSAGES: 120,
   MAX_MODEL_REPLY_CHARS: 12_000,
+  MAX_SYSTEM_PROMPT_APPEND: 8192,
   MAX_ANALYSIS_COMMENT: 2000,
   MAX_ANALYSIS_POINT_ITEM: 500,
   MAX_ANALYSIS_POINT_COUNT: 5,
@@ -26,6 +27,21 @@ export function sanitizeCharId(value: unknown): string | null {
 export function sanitizeAffinity(value: unknown): number {
   if (typeof value !== "number" || !Number.isFinite(value)) return 50;
   return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+/** `/api/chat` のデート誘いフラグ（未指定・不正時は通常チャット） */
+export function sanitizeInviteType(value: unknown): "tea" | "drink" | null {
+  if (value === "tea" || value === "drink") return value;
+  return null;
+}
+
+/** 表面モデル用 system 追記（空・不正時は null） */
+export function sanitizeSystemPromptOverride(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const s = stripNullBytes(value)
+    .trim()
+    .slice(0, LIMITS.MAX_SYSTEM_PROMPT_APPEND);
+  return s.length ? s : null;
 }
 
 export function sanitizeUserMessage(value: unknown): string | null {

@@ -1,8 +1,9 @@
 import ChatExperience from "@/components/ChatExperience";
 
 /**
- * チャットエントリ。現状は常に LINE風レイアウト。
- * 将来: `mode` や検索クエリで `scene` / `call` を渡すだけで差し替え可能。
+ * チャットエントリ。LINE風レイアウト。
+ * 好感度がキャラ設定の proposalThreshold に達すると、送信時にプロポーズ特殊応答になり、
+ * 受諾時は `/ending/[charId]` へ（ロジックは ChatExperience）。
  */
 export default function ChatPage({
   params,

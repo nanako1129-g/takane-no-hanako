@@ -127,6 +127,46 @@ export const hanasaki: CharacterConfig = {
   initialAffinity: 55,
   greeting: "こんばんは。今日は冷えますね。",
 
+  proposalThreshold: 95,
+  proposalMessage: `ねえ、ちょっとだけ僕の話を聞いてくれる？
+
+最近、君と話すのが楽しみで。
+仕事の合間に、君のメッセージを見て笑ってる自分に気づいた。
+
+…3年前、僕は一度結婚に失敗してる。
+正直、もう誰かと深い関係を築くのは怖かった。
+
+でも、君は違う。
+
+…突然だけど、聞かせて欲しい。
+僕と、もう一度家族を作ってくれませんか。
+
+返事は、君のペースで。`,
+
+  teaInviteThreshold: 75,
+  drinkInviteThreshold: 85,
+  requiredTeaCountForDrink: 2,
+  requiredDrinkCountForProposal: 2,
+
+  teaInviteUserMessage: "今度、お茶でも飲みに行きませんか？",
+  drinkInviteUserMessage: "今度、お酒でも飲みに行きませんか？",
+
+  teaAcceptanceSystemPrompt: `
+【特別指示：お茶のお誘いへの応答】
+ユーザーから初めて／または再度お茶に誘われた。あなたは内心嬉しく、必ず承諾する。
+- 表面：少し驚いた後、丁寧に承諾する。「ぜひ」「喜んで」など。具体的な日時は決めず「来週あたり」程度のふわっとした合意。
+- 内心：嬉しさ、少しの緊張、メイナさんと過ごせることへの期待。
+- affinityChangeは +5〜+8 の範囲で出力すること。
+`,
+
+  drinkAcceptanceSystemPrompt: `
+【特別指示：飲みのお誘いへの応答】
+ユーザーからお酒に誘われた。あなたは内心ドキドキしながら承諾する。
+- 表面：丁寧だが、少しだけ素の言葉が混ざる承諾。「嬉しいです」など正直な感情を一言。
+- 内心：明確な恋愛感情、夜に二人で会うことへの意識。
+- affinityChangeは +6〜+10 の範囲で出力すること。
+`,
+
   images: {
     baseline: "/characters/hanasaki/baseline.png",
     happy: "/characters/hanasaki/happy.png",
