@@ -145,6 +145,16 @@ export const hanasaki: CharacterConfig = {
 
 返事は、{userName}さんのペースで。`,
 
+  assistantReplyDelayMinMs: 500,
+  assistantReplyDelayMaxMs: 1500,
+
+  intimacySecretAffinityThreshold: 95,
+  intimacySecretAssistantMessage: `{userName}さんだから話すんですけど、実は…
+
+離婚してしばらくした頃、一人で駅の売店で缶ビールを買ったのに、そのまま帰ろうとして「開けるのダルいな」と思って、未開封のまま電車で持ち帰ったことがあるんです。
+
+…馬鹿馬鹿しくて自分で苦笑いしました。ほんとにささいな話なんですが、ほかにはまだ話してなかったので。バカ見せてすみません。`,
+
   teaInviteThreshold: 75,
   drinkInviteThreshold: 85,
   requiredTeaCountForDrink: 2,
@@ -218,7 +228,6 @@ export const hanasaki: CharacterConfig = {
   teaDateHidePortraitStrip: true,
   teaDateEmptyBackgroundSrc: "/characters/hanasaki/cafe_empty.png",
   teaDateWithCharacterBackgroundSrc: "/characters/hanasaki/cafe_with_him.png",
-  barDateEmptyBackgroundSrc: "/characters/hanasaki/bar_empty.png",
   barDateWithCharacterBackgroundSrc: "/characters/hanasaki/bar_with_him.png",
 
   images: {

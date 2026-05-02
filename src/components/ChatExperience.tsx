@@ -3,7 +3,14 @@
 import Image from "next/image";
 import Link from "next/link";
 import { notFound, useRouter } from "next/navigation";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { ChatBubble } from "@/components/ChatBubble";
 import { CharacterPortrait } from "@/components/CharacterPortrait";
 import { DateInviteButtons } from "@/components/DateInviteButtons";
@@ -19,6 +26,12 @@ import {
   pickCharacterPortrait,
 } from "@/characters";
 import { clearCachedAnalysis } from "@/lib/analysisCache";
+import {
+  clearIntimateSecretShown,
+  loadIntimateSecretShown,
+  saveIntimateSecretShown,
+} from "@/lib/intimateSecretStorage";
+import { assistantTypingDelayMs, sleepMs } from "@/lib/replyLatency";
 import {
   canTriggerProposal,
   evaluateUnlocks,
@@ -134,6 +147,14 @@ export default function ChatExperience({
   useEffect(() => {
     affinityRef.current = affinity;
   }, [affinity]);
+
+  const intimacyBootstrapRef = useRef(false);
+  const intimacyPrevAffinityRef = useRef<number | null>(null);
+
+  useLayoutEffect(() => {
+    intimacyBootstrapRef.current = false;
+    intimacyPrevAffinityRef.current = null;
+  }, [character.id]);
 
   /** お茶承諾後の「☕ 一緒にお茶しに行く」待ち状態 */
   const [awaitingTeaOuting, setAwaitingTeaOuting] = useState(false);
@@ -292,6 +313,66 @@ export default function ChatExperience({
     el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
   }, [messages, sending]);
 
+  /** 好感度が閾値を超えた最初のタイミング（または復元済みの高好感度セーブ時）での一度きり独白 */
+  useEffect(() => {
+    if (!affinityHydrated || !historyHydrated) return;
+    if (typeof window === "undefined") return;
+
+    const payload = character.intimacySecretAssistantMessage?.trim();
+    if (!payload) return;
+
+    const threshold =
+      typeof character.intimacySecretAffinityThreshold === "number"
+        ? character.intimacySecretAffinityThreshold
+        : typeof character.proposalThreshold === "number"
+          ? character.proposalThreshold
+          : 95;
+
+    const tryAppend = (
+      crossed: boolean,
+      alreadyHighBootstrap: boolean
+    ) => {
+      if (!crossed && !alreadyHighBootstrap) return;
+      const txt = interpolateUserName(payload, userProfile?.name ?? "");
+      const secretMsg: Message = {
+        id: newId(),
+        role: "assistant",
+        content: txt,
+        createdAt: Date.now(),
+        autoKind: "intimacy_secret",
+      };
+      setMessages((msgs) => {
+        if (msgs.some((m) => m.autoKind === "intimacy_secret")) return msgs;
+        if (loadIntimateSecretShown(character.id)) return msgs;
+        saveIntimateSecretShown(character.id);
+        return [...msgs, secretMsg];
+      });
+    };
+
+    if (!intimacyBootstrapRef.current) {
+      intimacyBootstrapRef.current = true;
+      intimacyPrevAffinityRef.current = affinity;
+      const alreadyHighBootstrap = affinity >= threshold;
+      queueMicrotask(() => tryAppend(false, alreadyHighBootstrap));
+      return;
+    }
+
+    const prev = intimacyPrevAffinityRef.current ?? affinity;
+    intimacyPrevAffinityRef.current = affinity;
+    if (prev < threshold && affinity >= threshold) {
+      queueMicrotask(() => tryAppend(true, false));
+    }
+  }, [
+    affinity,
+    affinityHydrated,
+    historyHydrated,
+    character.id,
+    character.intimacySecretAffinityThreshold,
+    character.intimacySecretAssistantMessage,
+    character.proposalThreshold,
+    userProfile?.name,
+  ]);
+
   const sendUserRound = useCallback(
     async (
       userMsg: Message,
@@ -384,6 +465,17 @@ export default function ChatExperience({
 
         const data = (await res.json()) as ChatResponseBody;
 
+        if (conversationEpochRef.current !== epochSnapshot) {
+          return;
+        }
+
+        const delayMs =
+          sceneState.mode === "line"
+            ? assistantTypingDelayMs(character, affinity)
+            : 0;
+        if (delayMs > 0) {
+          await sleepMs(delayMs);
+        }
         if (conversationEpochRef.current !== epochSnapshot) {
           return;
         }
@@ -542,6 +634,7 @@ export default function ChatExperience({
       window.localStorage.removeItem(`${MESSAGES_PREFIX}${character.id}`);
       window.localStorage.removeItem(`affinity_${character.id}`);
       clearCachedAnalysis(character.id);
+      clearIntimateSecretShown(character.id);
     }
   }, [character, setAffinity]);
 
@@ -991,7 +1084,6 @@ export default function ChatExperience({
           userName={chatUserName}
           introTemplateUserName={userProfile?.name ?? ""}
           portraitSrc={teaDatePortraitSrc}
-          hidePortraitStrip={character.teaDateHidePortraitStrip === true}
           turnsInScene={sceneState.turnsInScene}
           minTurns={sceneState.minTurns}
           maxTurns={sceneState.maxTurns}

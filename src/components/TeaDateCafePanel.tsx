@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ChatBubble } from "@/components/ChatBubble";
 import { MessageInput } from "@/components/MessageInput";
 import { messageContentForGemini } from "@/lib/stamps";
+import { assistantTypingDelayMs, sleepMs } from "@/lib/replyLatency";
 import { interpolateUserName } from "@/lib/promptInterpolate";
 import type { Character, ChatResponseBody, Message } from "@/types";
 
@@ -32,8 +33,6 @@ export type TeaDateCafePanelProps = {
   /** 冒頭などテンプレの `{userName}` 差し込み用（保存プロフィールの生名前） */
   introTemplateUserName: string;
   portraitSrc: string | null;
-  /** true なら大きな立ち絵プレビューを出さず、複合背景と被せない（吹き出しアバターには portraitSrc を使う） */
-  hidePortraitStrip?: boolean;
   /** 親の SceneState と同期した店シーン内ターン数 */
   turnsInScene: number;
   minTurns: number;
@@ -53,7 +52,6 @@ export function TeaDateCafePanel({
   userName,
   introTemplateUserName,
   portraitSrc,
-  hidePortraitStrip,
   turnsInScene,
   minTurns,
   maxTurns,
@@ -75,6 +73,7 @@ export function TeaDateCafePanel({
   const withCafeSrc = character.teaDateWithCharacterBackgroundSrc?.trim();
   const hasPairCafe = Boolean(emptyCafeSrc && withCafeSrc);
   const resolvedSingleBg = !hasPairCafe ? legacyBgSrc : null;
+  const showSceneHero = hasPairCafe || Boolean(resolvedSingleBg);
 
   const [entranceDone, setEntranceDone] = useState(() => !hasPairCafe);
   const [pairLayerVisible, setPairLayerVisible] = useState(() => !hasPairCafe);
@@ -232,6 +231,11 @@ export function TeaDateCafePanel({
 
         const data = (await res.json()) as ChatResponseBody;
 
+        const wait = assistantTypingDelayMs(character, affinity);
+        if (wait > 0) {
+          await sleepMs(wait);
+        }
+
         const assistantMsg: Message = {
           id: newMsgId(),
           role: "assistant",
@@ -280,7 +284,7 @@ export function TeaDateCafePanel({
 
   return (
     <div
-      className={`fixed inset-0 z-[100] flex flex-col bg-slate-900/35 backdrop-blur-sm ${
+      className={`fixed inset-0 z-[100] flex flex-col bg-[#dbd2c9] backdrop-blur-sm ${
         leaving
           ? "pointer-events-none animate-scene-fade-out"
           : "animate-scene-fade-in"
@@ -289,55 +293,10 @@ export function TeaDateCafePanel({
       aria-label="お茶デート・喫茶店シーン"
       aria-busy={!entranceDone}
     >
-      <div className="absolute inset-0 -z-20 bg-gradient-to-br from-amber-100 via-rose-50 to-orange-50" />
-      {hasPairCafe && emptyCafeSrc ? (
-        <div className="absolute inset-0 -z-10">
-          <Image
-            src={emptyCafeSrc}
-            alt=""
-            fill
-            sizes="100vw"
-            priority
-            className="object-cover object-center brightness-[0.92] contrast-[1.02]"
-          />
-        </div>
-      ) : null}
-      {hasPairCafe && withCafeSrc ? (
-        <div
-          className="absolute inset-0 -z-[9]"
-          style={{
-            opacity: pairLayerVisible ? 1 : 0,
-            transitionProperty: "opacity",
-            transitionDuration: `${CAFE_PAIR_CROSS_MS}ms`,
-            transitionTimingFunction: "ease-out",
-          }}
-        >
-          <Image
-            src={withCafeSrc}
-            alt=""
-            fill
-            sizes="100vw"
-            priority={pairLayerVisible}
-            className="object-cover object-center brightness-[0.92] contrast-[1.02]"
-          />
-        </div>
-      ) : null}
-      {resolvedSingleBg ? (
-        <div className="absolute inset-0 -z-10">
-          <Image
-            src={resolvedSingleBg}
-            alt=""
-            fill
-            sizes="100vw"
-            priority
-            className="object-cover object-center brightness-[0.92] contrast-[1.02]"
-          />
-        </div>
-      ) : null}
-      <div className="absolute inset-0 -z-[5] bg-gradient-to-t from-black/35 via-transparent to-black/25" />
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[#e8dfd6] via-[#ddd3c9] to-[#cfc4b9]" />
 
       <header
-        className={`flex shrink-0 items-center justify-between border-b border-white/40 bg-black/25 px-4 py-3 text-white backdrop-blur-md transition-opacity duration-500 ${
+        className={`relative z-[1] flex shrink-0 items-center justify-between border-b border-slate-800/10 bg-[#d4cbc2]/92 px-4 py-3 text-slate-800 backdrop-blur-md shadow-sm transition-opacity duration-500 ${
           entranceDone ? "opacity-100" : "opacity-0"
         }`}
       >
@@ -346,32 +305,71 @@ export function TeaDateCafePanel({
           type="button"
           onClick={() => interruptCafe()}
           disabled={leaving || !entranceDone}
-          className="rounded-full bg-white/20 px-3 py-1.5 text-xs font-medium backdrop-blur transition hover:bg-white/30 disabled:opacity-40"
+          className="rounded-full bg-slate-900/10 px-3 py-1.5 text-xs font-medium backdrop-blur transition hover:bg-slate-900/15 disabled:opacity-40"
         >
           店を出る（中断）
         </button>
       </header>
 
+      {showSceneHero ? (
+        <div
+          className={`relative z-[1] shrink-0 px-4 pb-3 pt-4 transition-opacity duration-500 ${
+            entranceDone ? "opacity-100" : "opacity-40"
+          }`}
+        >
+          <div className="mx-auto flex w-full max-w-lg justify-center">
+            <div className="relative isolate mx-auto h-[min(48vh,460px)] w-full max-w-[380px] overflow-hidden rounded-2xl shadow-[0_24px_60px_-12px_rgba(0,0,0,0.35)] ring-2 ring-white/70">
+              {hasPairCafe && emptyCafeSrc ? (
+                <Image
+                  src={emptyCafeSrc}
+                  alt=""
+                  fill
+                  sizes="(max-width: 768px) 92vw, 380px"
+                  priority
+                  className="object-cover object-center"
+                />
+              ) : null}
+              {hasPairCafe && withCafeSrc ? (
+                <div
+                  className="absolute inset-0"
+                  style={{
+                    opacity: pairLayerVisible ? 1 : 0,
+                    transitionProperty: "opacity",
+                    transitionDuration: `${CAFE_PAIR_CROSS_MS}ms`,
+                    transitionTimingFunction: "ease-out",
+                  }}
+                >
+                  <Image
+                    src={withCafeSrc}
+                    alt=""
+                    fill
+                    sizes="(max-width: 768px) 92vw, 380px"
+                    priority={pairLayerVisible}
+                    className="object-cover object-center"
+                  />
+                </div>
+              ) : null}
+              {resolvedSingleBg ? (
+                <Image
+                  src={resolvedSingleBg}
+                  alt=""
+                  fill
+                  sizes="(max-width: 768px) 92vw, 380px"
+                  priority
+                  className="object-cover object-center"
+                />
+              ) : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <div
         ref={scrollRef}
-        className={`scrollbar-thin mx-auto mt-3 min-h-0 w-full max-w-lg flex-1 space-y-3 overflow-y-auto px-4 pb-4 pt-2 transition-opacity duration-500 ${
+        className={`scrollbar-thin relative z-[1] mx-auto min-h-0 w-full max-w-lg flex-1 space-y-3 overflow-y-auto px-4 py-3 transition-opacity duration-500 ${
           entranceDone ? "opacity-100" : "opacity-0"
         }`}
       >
-        {portraitSrc && !hidePortraitStrip ? (
-          <div className="mx-auto mb-4 w-32 overflow-hidden rounded-2xl shadow-lg ring-2 ring-white/50">
-            <div className="relative aspect-[3/4] w-full bg-gradient-to-br from-white/50 to-transparent">
-              <Image
-                src={portraitSrc}
-                alt={character.name}
-                fill
-                className="object-cover object-top"
-                sizes="128px"
-              />
-            </div>
-          </div>
-        ) : null}
-
         {messages.map((m) => (
           <ChatBubble
             key={m.id}
@@ -382,19 +380,19 @@ export function TeaDateCafePanel({
           />
         ))}
         {sending && (
-          <p className="px-2 text-xs text-white/90 drop-shadow">
+          <p className="px-2 text-xs text-slate-600 drop-shadow-sm">
             {character.displayName}が考えています…
           </p>
         )}
         {error ? (
-          <div className="rounded-xl border border-red-300/70 bg-red-950/70 px-3 py-2 text-xs text-red-50">
+          <div className="rounded-xl border border-red-400/70 bg-red-50 px-3 py-2 text-xs text-red-900">
             {error}
           </div>
         ) : null}
       </div>
 
       <footer
-        className={`mx-auto mt-auto flex w-full max-w-lg shrink-0 flex-col gap-2 border-t border-white/30 bg-black/35 px-3 py-3 backdrop-blur-md transition-opacity duration-500 ${
+        className={`relative z-[1] mx-auto mt-auto flex w-full max-w-lg shrink-0 flex-col gap-2 border-t border-slate-800/10 bg-[#d4cbc2]/90 px-3 py-3 backdrop-blur-md shadow-[0_-8px_30px_-12px_rgba(0,0,0,0.12)] transition-opacity duration-500 ${
           entranceDone ? "opacity-100" : "opacity-0"
         }`}
       >
@@ -403,7 +401,7 @@ export function TeaDateCafePanel({
             type="button"
             onClick={() => departCafe()}
             disabled={leaving}
-            className="w-full rounded-2xl border border-amber-200/70 bg-gradient-to-r from-amber-100 to-rose-100 px-4 py-3 text-sm font-semibold text-amber-950 shadow-sm transition hover:from-amber-50 hover:to-rose-50 disabled:opacity-50"
+            className="w-full rounded-2xl border border-amber-900/25 bg-gradient-to-r from-amber-100 to-rose-50 px-4 py-3 text-sm font-semibold text-amber-950 shadow-sm transition hover:from-amber-50 hover:to-rose-100 disabled:opacity-50"
           >
             そろそろ帰りますか
           </button>
@@ -414,9 +412,9 @@ export function TeaDateCafePanel({
         !leaving &&
         !showLeavePrompt &&
         entranceDone ? (
-          <p className="text-center text-[11px] font-medium text-amber-100/90">
+          <p className="text-center text-[11px] font-medium text-slate-700">
             あと{" "}
-            <span className="font-semibold text-amber-50">
+            <span className="font-semibold text-slate-900">
               {minTurns - turnsInScene}
             </span>{" "}
             ターンで「帰りますか」が選べます
@@ -424,7 +422,7 @@ export function TeaDateCafePanel({
         ) : null}
 
         {turnsInScene >= maxTurns && !leaving && entranceDone ? (
-          <p className="text-center text-[11px] font-medium text-amber-100">
+          <p className="text-center text-[11px] font-medium text-slate-700">
             楽しい時間だったね。また連絡するね…（自動で席を立ちます）
           </p>
         ) : null}

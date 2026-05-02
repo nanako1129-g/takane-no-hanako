@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ChatBubble } from "@/components/ChatBubble";
 import { MessageInput } from "@/components/MessageInput";
 import { messageContentForGemini } from "@/lib/stamps";
+import { assistantTypingDelayMs, sleepMs } from "@/lib/replyLatency";
 import { interpolateUserName } from "@/lib/promptInterpolate";
 import type { Character, ChatResponseBody, Message } from "@/types";
 
@@ -71,6 +72,8 @@ export function BarVenuePanel({
   const emptySrc = character.barDateEmptyBackgroundSrc?.trim();
   const withSrc = character.barDateWithCharacterBackgroundSrc?.trim();
   const hasPairBg = Boolean(emptySrc && withSrc);
+  /** 無人フェーズ無し・乾杯パネルだけ（`bar_empty` 未定義） */
+  const hasSoloBarBg = Boolean(withSrc && !emptySrc);
   const telopLine =
     character.barDateLocationTelop?.trim() || DEFAULT_BAR_LOCATION_TELOP;
 
@@ -238,6 +241,11 @@ export function BarVenuePanel({
 
         const data = (await res.json()) as ChatResponseBody;
 
+        const wait = assistantTypingDelayMs(character, affinity);
+        if (wait > 0) {
+          await sleepMs(wait);
+        }
+
         const assistantMsg: Message = {
           id: newMsgId(),
           role: "assistant",
@@ -298,6 +306,18 @@ export function BarVenuePanel({
       aria-busy={!entranceDone}
     >
       <div className="absolute inset-0 -z-20 bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-900" />
+      {hasSoloBarBg && withSrc ? (
+        <div className="absolute inset-0 -z-10">
+          <Image
+            src={withSrc}
+            alt=""
+            fill
+            sizes="100vw"
+            priority
+            className="object-cover object-center"
+          />
+        </div>
+      ) : null}
       {hasPairBg && emptySrc ? (
         <div className="absolute inset-0 -z-14">
           <Image

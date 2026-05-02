@@ -74,22 +74,27 @@ export function PlayerNameProvider({
   }, []);
 
   const showChatGear =
-    Boolean(userProfile) && /^\/chat\/[^/]+$/.test(pathname ?? "");
+    Boolean(userProfile) &&
+    ready &&
+    /^\/chat\/[^/]+$/.test(pathname ?? "");
 
-  if (!ready) {
-    return (
-      <div
-        className="min-h-dvh bg-[#fff7f4]"
-        aria-busy="true"
-        aria-label="読み込み中"
-      />
-    );
-  }
-
+  /** App Router はルートレイアウトが常に `{children}` を渡す必要がある。ここでは返さず重ねないと `/` が 404 になる。 */
   return (
     <PlayerNameContext.Provider
-      value={{ profile: userProfile, ready: true, saveProfile }}
+      value={{
+        profile: userProfile,
+        ready,
+        saveProfile,
+      }}
     >
+      {!ready ? (
+        <div
+          className="fixed inset-0 z-[950] min-h-dvh cursor-wait bg-[#fff7f4]/95"
+          aria-busy="true"
+          aria-label="読み込み中"
+        />
+      ) : null}
+
       {showChatGear ? (
         <button
           type="button"

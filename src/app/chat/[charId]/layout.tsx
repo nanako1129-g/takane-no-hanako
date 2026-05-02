@@ -16,25 +16,27 @@ export default function ChatCharLayout({
     saveProfile(profile);
   };
 
-  if (!ready) {
-    return (
-      <div
-        className="min-h-dvh bg-[#fff7f4]"
-        aria-busy="true"
-        aria-label="読み込み中"
-      />
-    );
-  }
+  /** `{children}` を省略するとこのセグメントが 404 になるため、オーバーレイだけ重ねる */
+  const blockChatUi = !ready || !userProfile;
 
-  if (!userProfile) {
-    return (
-      <>
-        <div className="min-h-dvh bg-[#fff7f4]" aria-hidden />
-        {/* チャット直リンク時: 名前未設定ならトップへ飛ばさず強制モーダル */}
-        <UserNameModal isOpen initialName="" onSubmit={handleNameSubmit} />
-      </>
-    );
-  }
-
-  return <>{children}</>;
+  return (
+    <>
+      {!ready ? (
+        <div
+          className="fixed inset-0 z-[940] min-h-dvh cursor-wait bg-[#fff7f4]/95"
+          aria-busy="true"
+          aria-label="読み込み中"
+        />
+      ) : null}
+      {ready && !userProfile ? (
+        <>
+          <UserNameModal isOpen initialName="" onSubmit={handleNameSubmit} />
+          <div className="fixed inset-0 z-[930] bg-[#fff7f4]" aria-hidden />
+        </>
+      ) : null}
+      <div className={blockChatUi ? "pointer-events-none min-h-0" : "min-h-0"}>
+        {children}
+      </div>
+    </>
+  );
 }

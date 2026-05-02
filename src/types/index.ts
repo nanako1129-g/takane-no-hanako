@@ -29,6 +29,12 @@ export type CharacterConfig = {
   proposalThreshold?: number;
   /** プロポーズ本文（送信時は通常チャットレスポンスの代わりに表示） */
   proposalMessage?: string;
+  /**
+   * アシスタントの返答を表示するまでの見かけの遅延（ms）。両方あるときのみ有効。
+   * 体感の「間」用。下限〜上限の間を好感度に応じて偏らせたランダムにする。
+   */
+  assistantReplyDelayMinMs?: number;
+  assistantReplyDelayMaxMs?: number;
   /** お茶デート誘いフロー開始の好感度閾値（未指定時は 75） */
   teaInviteThreshold?: number;
   /** 飲みデート誘いフロー開始の好感度閾値（未指定時は 85） */
@@ -70,7 +76,7 @@ export type CharacterConfig = {
   teaDatePortraitSrc?: string;
   /** true のとき画面上部の立ち絵ストリップを隠す（複合背景で人物が被る場合など）。吹き出しアバターには teaDatePortraitSrc がそのまま使われる */
   teaDateHidePortraitStrip?: boolean;
-  /** バー個室・誰もいない状態の背景（`barDateWithCharacterBackgroundSrc` と併せて順にフェードする想定）。未設定はグラデーションのみで入室演出を短縮 */
+  /** バー個室・誰もいない状態の背景（`barDateWithCharacterBackgroundSrc` と併せて順にフェード）。未設定で相手のみ指定した場合は単一背景として表示 */
   barDateEmptyBackgroundSrc?: string;
   /** バー個室・相手入室後の背景 */
   barDateWithCharacterBackgroundSrc?: string;
@@ -86,6 +92,12 @@ export type CharacterConfig = {
    * 飲み誘いの承諾／バーシナリオ用。未設定時は `drinkAcceptanceSystemPrompt` を使う。
    */
   barInviteAcceptanceSystemPrompt?: string;
+  /**
+   * 「秘密の共有」: 親密性の報酬として、閾値到達後に一度だけ自動で送る独白（重くない小さめの失敗談など）。`{userName}` 可。
+   */
+  intimacySecretAssistantMessage?: string;
+  /** 上記を挿入する好感度の下限（未指定時は `proposalThreshold`、`proposalThreshold` も無ければ 95） */
+  intimacySecretAffinityThreshold?: number;
 };
 
 /** 複数キャラ対応時のエイリアス */
@@ -139,6 +151,8 @@ export type Message = {
   affinityChange?: number;
   /** このメッセージの下にプロポーズ応答ボタンを付ける */
   proposalChoices?: boolean;
+  /** アプリ自動挿入メッセージの識別（重複防止・UI での区別に使用可） */
+  autoKind?: "intimacy_secret";
 };
 
 export type ChatResponseBody = {
