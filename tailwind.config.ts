@@ -90,6 +90,14 @@ const config: Config = {
           "90%": { transform: "translateY(0)", opacity: "1" },
           "100%": { transform: "translateY(-20px)", opacity: "0" },
         },
+        sceneFade: {
+          "0%": { opacity: "0" },
+          "100%": { opacity: "1" },
+        },
+        sceneFadeOut: {
+          "0%": { opacity: "1" },
+          "100%": { opacity: "0" },
+        },
       },
       animation: {
         "fade-portrait": "fadePortraitIn 300ms ease-out",
@@ -104,6 +112,8 @@ const config: Config = {
         "heart-pulse-down": "heartPulseDown 600ms ease-out",
         "particle-float": "particleFloat 1.2s ease-out forwards",
         "toast-slide": "toastSlideIn 3s ease-in-out forwards",
+        "scene-fade-in": "sceneFade 450ms ease-out forwards",
+        "scene-fade-out": "sceneFadeOut 380ms ease-in forwards",
       },
     },
   },

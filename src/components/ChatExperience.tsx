@@ -11,6 +11,9 @@ import { HeartIndicator } from "@/components/HeartIndicator";
 import { MessageInput } from "@/components/MessageInput";
 import { StampPicker } from "@/components/StampPicker";
 import { UnlockToast } from "@/components/UnlockToast";
+import { usePlayerProfileState } from "@/components/PlayerNameProvider";
+import { BarVenuePanel } from "@/components/BarVenuePanel";
+import { TeaDateCafePanel } from "@/components/TeaDateCafePanel";
 import {
   getCharacter,
   pickCharacterPortrait,
@@ -30,6 +33,7 @@ import {
   stamps as stampDefinitions,
 } from "@/lib/stamps";
 import { useAffinity } from "@/hooks/useAffinity";
+import { interpolateUserName } from "@/lib/promptInterpolate";
 import type {
   AffinityPulse,
   ChatMode,
@@ -39,7 +43,9 @@ import type {
   Message,
   ProposalState,
   SceneEvent,
+  SceneState,
 } from "@/types";
+import { lineSceneState, venueSceneState } from "@/types";
 
 export interface ChatExperienceProps {
   charId: string;
@@ -56,6 +62,22 @@ const DEFAULT_TEA_INVITE_USER_MESSAGE =
   "今度、お茶でも飲みに行きませんか？";
 const DEFAULT_DRINK_INVITE_USER_MESSAGE =
   "今度、お酒でも飲みに行きませんか？";
+
+/** お茶デート後 LINE 復帰の締め（`teaDateClosingAssistantMessage` 未設定時） */
+const DEFAULT_TEA_DATE_FAREWELL_LINE =
+  "今日はお時間いただいて、ありがとうございました。\nまた、お話できたら嬉しいです。";
+
+/** バーデート後 LINE 復帰の締め（`barDateClosingAssistantMessage` 未設定時） */
+const DEFAULT_BAR_DATE_FAREWELL_LINE =
+  "今夜は、本当にありがとうございました。\n" +
+  "…また、こうして話せたら嬉しいです。\n" +
+  "気をつけて帰ってくださいね。";
+
+/** バー退店〜LINE復帰で加算する好感度（`CharacterConfig.barDateAffinityBonusOnLeave` が無いとき） */
+const DEFAULT_BAR_LEAVE_AFFINITY_BONUS = 12;
+
+/** リセット実行後に戻す好感度（やり直し開始ライン） */
+const RESET_AFFINITY = 60;
 
 function clampAffinity(n: number): number {
   if (!Number.isFinite(n)) return 0;
@@ -77,11 +99,14 @@ export default function ChatExperience({
   const character = getCharacter(charId);
   if (!character) notFound();
 
+  const { profile: userProfile } = usePlayerProfileState();
+  const chatUserName = useMemo(() => {
+    const raw = userProfile?.name ?? "";
+    return raw.trim() || "あなた";
+  }, [userProfile?.name]);
   const router = useRouter();
   const {
     affinity,
-    applyChange,
-    reset,
     setAffinity,
     hydrated: affinityHydrated,
   } = useAffinity(character.id, character.initialAffinity);
@@ -101,8 +126,42 @@ export default function ChatExperience({
   const [pendingInviteAcceptance, setPendingInviteAcceptance] =
     useState<DateInviteType | null>(null);
 
+  /** リセット後に進行途中の `/api/chat` 応答で state が上書きされないようにする */
+  const conversationEpochRef = useRef(0);
+
+  /** デート復帰時の evaluateUnlocks などで参照する現在好感度 */
+  const affinityRef = useRef(affinity);
+  useEffect(() => {
+    affinityRef.current = affinity;
+  }, [affinity]);
+
+  /** お茶承諾後の「☕ 一緒にお茶しに行く」待ち状態 */
+  const [awaitingTeaOuting, setAwaitingTeaOuting] = useState(false);
+  /** 飲み承諾後のバー入室待ち */
+  const [awaitingDrinkOuting, setAwaitingDrinkOuting] = useState(false);
+  /** LINE / 店シーンの進行（バーは将来 `mode: "bar"` で拡張） */
+  const [sceneState, setSceneState] = useState<SceneState>(() =>
+    lineSceneState()
+  );
+  const [teaDateSessionKey, setTeaDateSessionKey] = useState(0);
+
+  const venueUiOpen =
+    sceneState.mode === "cafe" || sceneState.mode === "bar";
+
   const proposalThreshold = character.proposalThreshold;
-  const proposalMessage = character.proposalMessage?.trim();
+  const proposalText = useMemo(() => {
+    const userName = userProfile?.name ?? "";
+    return interpolateUserName(character.proposalMessage ?? "", userName);
+  }, [character.proposalMessage, userProfile?.name]);
+
+  const greetingText = useMemo(
+    () =>
+      interpolateUserName(
+        character.greeting ?? "こんばんは。",
+        userProfile?.name ?? ""
+      ),
+    [character.greeting, userProfile?.name]
+  );
 
   /** 「もう少し考える」後は true を維持（通常返答後に false に戻して再プロポーズ可能に） */
   const [proposalDelivered, setProposalDelivered] = useState(false);
@@ -157,6 +216,7 @@ export default function ChatExperience({
     setDateProgress(loadDateProgress(character.id));
   }, [character.id]);
 
+  // useEffect で一本化（dateProgress が変わるたびに永続化）
   useEffect(() => {
     saveDateProgress(character.id, dateProgress);
   }, [character.id, dateProgress]);
@@ -220,11 +280,11 @@ export default function ChatExperience({
       {
         id: newId(),
         role: "assistant",
-        content: character.greeting,
+        content: greetingText,
         createdAt: Date.now(),
       },
     ]);
-  }, [historyHydrated, messages.length, character.greeting]);
+  }, [historyHydrated, messages.length, greetingText]);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -243,7 +303,7 @@ export default function ChatExperience({
       setError(null);
 
       const t = proposalThreshold;
-      const proposeText = proposalMessage;
+      const proposeText = proposalText.trim() ? proposalText : undefined;
       const inviteAcceptance = opts?.inviteAcceptance;
       const systemPromptOverride = opts?.systemPromptOverride?.trim();
 
@@ -280,14 +340,26 @@ export default function ChatExperience({
 
       setMessages((prev) => [...prev, userMsg]);
 
+      const epochSnapshot = conversationEpochRef.current;
+
       try {
-        const body: Record<string, unknown> = {
-          charId: character.id,
+        const teaDateCafe = sceneState.mode === "cafe";
+        const teaDateBar = sceneState.mode === "bar";
+        const body = {
           messages: historyForApi,
-          userMessage: messageContentForGemini(userMsg),
+          character,
           affinity,
+          userName: userProfile?.name ?? "",
+          ...(systemPromptOverride
+            ? { systemPromptOverride }
+            : {}),
+          teaDateCafe,
+          teaDateBar,
+          turnsInScene: sceneState.turnsInScene,
+          maxTurns: sceneState.maxTurns,
           ...(inviteAcceptance ? { inviteType: inviteAcceptance } : {}),
-          ...(systemPromptOverride ? { systemPromptOverride } : {}),
+          charId: character.id,
+          userMessage: messageContentForGemini(userMsg),
         };
 
         const res = await fetch("/api/chat", {
@@ -296,18 +368,34 @@ export default function ChatExperience({
           body: JSON.stringify(body),
         });
 
+        if (conversationEpochRef.current !== epochSnapshot) {
+          return;
+        }
+
         if (!res.ok) {
           const errBody = (await res.json().catch(() => ({}))) as {
             error?: string;
           };
+          if (conversationEpochRef.current !== epochSnapshot) {
+            return;
+          }
           throw new Error(errBody.error || `HTTP ${res.status}`);
         }
 
         const data = (await res.json()) as ChatResponseBody;
 
+        if (conversationEpochRef.current !== epochSnapshot) {
+          return;
+        }
+
         const delta =
           typeof data.affinityChange === "number" ? data.affinityChange : 0;
-        const affinityAfterGemini = clampAffinity(affinity + delta);
+        const change = delta;
+
+        const newAffinity = clampAffinity(affinity + change);
+        const prevProgress = dateProgress;
+
+        const updated = evaluateUnlocks(newAffinity, prevProgress, character);
 
         const assistantMsg: Message = {
           id: newId(),
@@ -320,59 +408,24 @@ export default function ChatExperience({
 
         setMessages((prev) => [...prev, assistantMsg]);
 
-        if (typeof data.affinityChange === "number") {
-          applyChange(data.affinityChange);
+        setAffinity(newAffinity);
+        setAffinityPulse({ delta: change, timestamp: Date.now() });
+        setDateProgress(updated);
+
+        if (!prevProgress.unlockedDrink && updated.unlockedDrink) {
+          setUnlockToast("🍶 「飲みに誘う」が解放されました");
+        } else if (!prevProgress.unlockedTea && updated.unlockedTea) {
+          setUnlockToast("🍵 「お茶に誘う」が解放されました");
         }
 
-        const change =
-          typeof data.affinityChange === "number" ? data.affinityChange : 0;
-        if (change !== 0) {
-          setAffinityPulse({ delta: change, timestamp: Date.now() });
+        if (inviteAcceptance === "tea") {
+          setAwaitingTeaOuting(true);
+        }
+        if (inviteAcceptance === "drink") {
+          setAwaitingDrinkOuting(true);
         }
 
-        const newAffinity = clampAffinity(affinity + change);
-
-        let toastTea = false;
-        let toastDrink = false;
-        let toastDrinkAfterInvite = false;
-
-        setDateProgress((prevProgress) => {
-          const nextProgress = evaluateUnlocks(newAffinity, prevProgress, character);
-          if (!prevProgress.unlockedTea && nextProgress.unlockedTea) {
-            toastTea = true;
-          }
-          if (!prevProgress.unlockedDrink && nextProgress.unlockedDrink) {
-            toastDrink = true;
-          }
-
-          if (!inviteAcceptance) {
-            return nextProgress;
-          }
-
-          const incremented = incrementDateCount(nextProgress, inviteAcceptance);
-          const reevaluated = evaluateUnlocks(newAffinity, incremented, character);
-          if (
-            !incremented.unlockedDrink &&
-            reevaluated.unlockedDrink
-          ) {
-            toastDrinkAfterInvite = true;
-          }
-          return reevaluated;
-        });
-
-        queueMicrotask(() => {
-          const openedTea = toastTea;
-          const openedDrink = toastDrink || toastDrinkAfterInvite;
-          if (openedTea && openedDrink) {
-            setUnlockToast(
-              "🍵🍶 「お茶に誘う」「飲みに誘う」が解放されました"
-            );
-          } else if (openedTea) {
-            setUnlockToast("🍵 「お茶に誘う」が解放されました");
-          } else if (openedDrink) {
-            setUnlockToast("🍶 「飲みに誘う」が解放されました");
-          }
-        });
+        const affinityAfterGemini = newAffinity;
 
         if (
           typeof t === "number" &&
@@ -382,7 +435,11 @@ export default function ChatExperience({
           setProposalDelivered(false);
         }
       } catch (err) {
+        if (conversationEpochRef.current !== epochSnapshot) {
+          return;
+        }
         console.error(err);
+        setMessages((prev) => prev.filter((m) => m.id !== userMsg.id));
         setError(
           err instanceof Error
             ? err.message
@@ -392,15 +449,21 @@ export default function ChatExperience({
         setSending(false);
       }
     },
+    // useAffinity の setAffinity は setter と同様に参照が安定しているため省略する
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       affinity,
-      applyChange,
       character,
       dateProgress,
       messages,
       proposalDelivered,
-      proposalMessage,
+      proposalText,
       proposalThreshold,
+      chatUserName,
+      sceneState.maxTurns,
+      sceneState.mode,
+      sceneState.turnsInScene,
+      userProfile?.name,
     ]
   );
 
@@ -449,24 +512,38 @@ export default function ChatExperience({
   const handleReset = useCallback(() => {
     if (
       typeof window !== "undefined" &&
-      !window.confirm("会話履歴と好感度をリセットします。よろしいですか？")
+      !window.confirm(
+        "会話履歴をリセットし、好感度を60からやり直します。よろしいですか？"
+      )
     ) {
       return;
     }
+
+    conversationEpochRef.current += 1;
+    setSending(false);
+    setError(null);
+
+    setAffinity(clampAffinity(RESET_AFFINITY));
     setMessages([]);
-    setProposalChoiceMsgId(null);
-    setProposalDelivered(false);
     setDateProgress(initialDateProgress);
+    setProposalDelivered(false);
+    setProposalChoiceMsgId(null);
+
     setAffinityPulse(null);
     setUnlockToast(null);
-    reset();
+    setPendingInviteAcceptance(null);
+    setAwaitingTeaOuting(false);
+    setAwaitingDrinkOuting(false);
+    setSceneState(lineSceneState());
+
     if (typeof window !== "undefined") {
-      window.localStorage.removeItem(`${MESSAGES_PREFIX}${character.id}`);
       window.localStorage.removeItem(`${PROPOSAL_PREFIX}${character.id}`);
       window.localStorage.removeItem(`date_progress_${character.id}`);
+      window.localStorage.removeItem(`${MESSAGES_PREFIX}${character.id}`);
+      window.localStorage.removeItem(`affinity_${character.id}`);
       clearCachedAnalysis(character.id);
     }
-  }, [character.id, reset]);
+  }, [character, setAffinity]);
 
   const handleInvite = useCallback(
     async (type: DateInviteType) => {
@@ -480,7 +557,10 @@ export default function ChatExperience({
       const systemPromptOverride =
         type === "tea"
           ? character.teaAcceptanceSystemPrompt?.trim()
-          : character.drinkAcceptanceSystemPrompt?.trim();
+          : (
+              character.barInviteAcceptanceSystemPrompt?.trim() ||
+              character.drinkAcceptanceSystemPrompt?.trim()
+            );
 
       setPendingInviteAcceptance(type);
       try {
@@ -495,6 +575,7 @@ export default function ChatExperience({
       }
     },
     [
+      character.barInviteAcceptanceSystemPrompt,
       character.drinkAcceptanceSystemPrompt,
       character.drinkInviteUserMessage,
       character.teaAcceptanceSystemPrompt,
@@ -518,26 +599,156 @@ export default function ChatExperience({
   }, []);
 
   const handleDebugAffinity95 = useCallback(() => {
-    const target = clampAffinity(95);
-    setAffinity(target);
-    let toastTea = false;
-    let toastDrink = false;
-    setDateProgress((prev) => {
-      const next = evaluateUnlocks(target, prev, character);
-      if (!prev.unlockedTea && next.unlockedTea) toastTea = true;
-      if (!prev.unlockedDrink && next.unlockedDrink) toastDrink = true;
-      return next;
+    const newAffinity = clampAffinity(95);
+    const prevProgress = dateProgress;
+    const updated = evaluateUnlocks(newAffinity, prevProgress, character);
+
+    setAffinity(newAffinity);
+
+    setAffinityPulse({ delta: newAffinity - affinity, timestamp: Date.now() });
+
+    setDateProgress(updated);
+
+    if (!prevProgress.unlockedDrink && updated.unlockedDrink) {
+      setUnlockToast("🍶 「飲みに誘う」が解放されました");
+    } else if (!prevProgress.unlockedTea && updated.unlockedTea) {
+      setUnlockToast("🍵 「お茶に誘う」が解放されました");
+    }
+  }, [affinity, character, dateProgress, setAffinity]);
+
+  const teaDatePortraitSrc = useMemo(() => {
+    return (
+      character.teaDatePortraitSrc ?? pickCharacterPortrait(character, affinity)
+    );
+  }, [affinity, character]);
+
+  const adjustAffinityFromCafeDelta = useCallback(
+    (delta: number) => {
+      setAffinity((prev) => clampAffinity(prev + delta));
+    },
+    [setAffinity]
+  );
+
+  const completeTeaVenueTurn = useCallback(() => {
+    setSceneState((prev) =>
+      prev.mode === "cafe" || prev.mode === "bar"
+        ? { ...prev, turnsInScene: prev.turnsInScene + 1 }
+        : prev
+    );
+  }, []);
+
+  const enterTeaDateCafeScene = useCallback(() => {
+    conversationEpochRef.current += 1;
+    setTeaDateSessionKey((k) => k + 1);
+    setAwaitingTeaOuting(false);
+    setSceneState(venueSceneState("cafe"));
+    setSending(false);
+    setError(null);
+    setAffinityPulse(null);
+  }, []);
+
+  const interruptTeaDateCafeWithoutProgress = useCallback(() => {
+    conversationEpochRef.current += 1;
+    setSceneState(lineSceneState());
+    setTeaDateSessionKey((k) => k + 1);
+  }, []);
+
+  const enterBarVenueScene = useCallback(() => {
+    conversationEpochRef.current += 1;
+    setTeaDateSessionKey((k) => k + 1);
+    setAwaitingDrinkOuting(false);
+    setSceneState(venueSceneState("bar"));
+    setSending(false);
+    setError(null);
+    setAffinityPulse(null);
+  }, []);
+
+  const interruptBarVenueWithoutProgress = useCallback(() => {
+    conversationEpochRef.current += 1;
+    setSceneState(lineSceneState());
+    setTeaDateSessionKey((k) => k + 1);
+  }, []);
+
+  const finishBarDateAndReturnLine = useCallback(() => {
+    conversationEpochRef.current += 1;
+    setSceneState(lineSceneState());
+
+    const bonus =
+      typeof character.barDateAffinityBonusOnLeave === "number"
+        ? Math.round(character.barDateAffinityBonusOnLeave)
+        : DEFAULT_BAR_LEAVE_AFFINITY_BONUS;
+    const cappedBonus = Math.max(-100, Math.min(100, bonus));
+    const nextAffinity = clampAffinity(affinityRef.current + cappedBonus);
+
+    setAffinity(nextAffinity);
+    setAffinityPulse({ delta: cappedBonus, timestamp: Date.now() });
+
+    setDateProgress((prevProgress) => {
+      const bumped = incrementDateCount(prevProgress, "drink");
+      return evaluateUnlocks(nextAffinity, bumped, character);
     });
-    queueMicrotask(() => {
-      if (toastTea && toastDrink) {
-        setUnlockToast("🍵🍶 「お茶に誘う」「飲みに誘う」が解放されました");
-      } else if (toastTea) {
-        setUnlockToast("🍵 「お茶に誘う」が解放されました");
-      } else if (toastDrink) {
-        setUnlockToast("🍶 「飲みに誘う」が解放されました");
+
+    const farewellSource =
+      character.barDateClosingAssistantMessage?.trim() ||
+      DEFAULT_BAR_DATE_FAREWELL_LINE;
+    const farewellLineBar = interpolateUserName(
+      farewellSource,
+      userProfile?.name ?? ""
+    );
+
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: newId(),
+        role: "assistant",
+        content: farewellLineBar,
+        createdAt: Date.now(),
+        affinityChange: cappedBonus,
+      },
+    ]);
+
+    setTeaDateSessionKey((k) => k + 1);
+  }, [character, setAffinity, userProfile?.name]);
+
+  const finishTeaDateAndReturnLine = useCallback(() => {
+    conversationEpochRef.current += 1;
+    setSceneState(lineSceneState());
+
+    setDateProgress((prevProgress) => {
+      const bumped = incrementDateCount(prevProgress, "tea");
+      const nextProgress = evaluateUnlocks(
+        affinityRef.current,
+        bumped,
+        character
+      );
+      if (!prevProgress.unlockedDrink && nextProgress.unlockedDrink) {
+        queueMicrotask(() =>
+          setUnlockToast("🍶 「飲みに誘う」が解放されました")
+        );
       }
+      return nextProgress;
     });
-  }, [character, setAffinity]);
+
+    const farewellSource =
+      character.teaDateClosingAssistantMessage?.trim() ||
+      DEFAULT_TEA_DATE_FAREWELL_LINE;
+    const farewellLine = interpolateUserName(
+      farewellSource,
+      userProfile?.name ?? ""
+    );
+
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: newId(),
+        role: "assistant",
+        content: farewellLine,
+        createdAt: Date.now(),
+      },
+    ]);
+
+    setTeaDateSessionKey((k) => k + 1);
+  }, [character, userProfile?.name]);
 
   const goAnalyze = useCallback(() => {
     router.push(`/analysis/${character.id}`);
@@ -701,18 +912,42 @@ export default function ChatExperience({
           data-chat-footer
           data-input-mode={mode}
         >
-          {/* 入力エリア手前: お茶／飲みに誘う */}
+          {awaitingTeaOuting ? (
+            <button
+              type="button"
+              onClick={enterTeaDateCafeScene}
+              disabled={isLoading || proposalPending || venueUiOpen}
+              className="flex w-full items-center justify-center rounded-xl border-2 border-amber-200/90 bg-gradient-to-b from-amber-50/95 to-white px-4 py-3.5 text-sm font-semibold tracking-wide text-amber-950 shadow-[0_1px_0_rgba(0,0,0,0.06)] transition hover:border-amber-300 hover:from-amber-50 hover:to-amber-50/80 disabled:opacity-50"
+            >
+              ☕ 一緒にお茶しに行く
+            </button>
+          ) : null}
+          {awaitingDrinkOuting ? (
+            <button
+              type="button"
+              onClick={enterBarVenueScene}
+              disabled={isLoading || proposalPending || venueUiOpen}
+              className="flex w-full items-center justify-center rounded-xl border-2 border-indigo-400/80 bg-gradient-to-b from-indigo-950/95 via-slate-900 to-indigo-950 px-4 py-3.5 text-sm font-semibold tracking-wide text-rose-50 shadow-[0_1px_0_rgba(0,0,0,0.2)] transition hover:border-rose-300/70 disabled:opacity-50"
+            >
+              🌃 一緒に飲みに行く
+            </button>
+          ) : null}
           <DateInviteButtons
             progress={dateProgress}
             onInvite={(t) => void handleInvite(t)}
             disabled={
-              isLoading || proposalPending || pendingInviteAcceptance !== null
+              isLoading ||
+              proposalPending ||
+              pendingInviteAcceptance !== null ||
+              awaitingTeaOuting ||
+              awaitingDrinkOuting ||
+              venueUiOpen
             }
           />
           {/* スタンプ */}
           <StampPicker
             stamps={stampDefinitions}
-            disabled={isLoading || proposalPending}
+            disabled={isLoading || proposalPending || venueUiOpen}
             onPick={handleStampPick}
           />
           {mode === "call" ? (
@@ -725,7 +960,7 @@ export default function ChatExperience({
           {/* 入力欄 */}
           <MessageInput
             onSubmit={sendMessage}
-            disabled={isLoading || proposalPending}
+            disabled={isLoading || proposalPending || venueUiOpen}
             placeholder={
               mode === "call"
                 ? "通話モードは暫定でテキスト入力（音声は今後対応）"
@@ -747,6 +982,43 @@ export default function ChatExperience({
           </div>
         </footer>
       </section>
+
+      {sceneState.mode === "cafe" ? (
+        <TeaDateCafePanel
+          key={teaDateSessionKey}
+          character={character}
+          affinity={affinity}
+          userName={chatUserName}
+          introTemplateUserName={userProfile?.name ?? ""}
+          portraitSrc={teaDatePortraitSrc}
+          hidePortraitStrip={character.teaDateHidePortraitStrip === true}
+          turnsInScene={sceneState.turnsInScene}
+          minTurns={sceneState.minTurns}
+          maxTurns={sceneState.maxTurns}
+          onVenueTurnCompleted={completeTeaVenueTurn}
+          onAffinityDelta={adjustAffinityFromCafeDelta}
+          onFinishedTeaDate={finishTeaDateAndReturnLine}
+          onInterruptTeaDate={interruptTeaDateCafeWithoutProgress}
+        />
+      ) : null}
+      {sceneState.mode === "bar" ? (
+        <BarVenuePanel
+          key={teaDateSessionKey}
+          character={character}
+          affinity={affinity}
+          userName={chatUserName}
+          introTemplateUserName={userProfile?.name ?? ""}
+          portraitSrc={teaDatePortraitSrc}
+          hidePortraitStrip={character.teaDateHidePortraitStrip === true}
+          turnsInScene={sceneState.turnsInScene}
+          minTurns={sceneState.minTurns}
+          maxTurns={sceneState.maxTurns}
+          onVenueTurnCompleted={completeTeaVenueTurn}
+          onAffinityDelta={adjustAffinityFromCafeDelta}
+          onFinishedBarDate={finishBarDateAndReturnLine}
+          onInterruptBarDate={interruptBarVenueWithoutProgress}
+        />
+      ) : null}
     </main>
   );
 }

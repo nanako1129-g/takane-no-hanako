@@ -1,17 +1,61 @@
+"use client";
+
 import Image from "next/image";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { UserNameModal } from "@/components/UserNameModal";
+import { usePlayerProfileState } from "@/components/PlayerNameProvider";
 import { characterList, hanasaki } from "@/characters";
+import type { UserProfile } from "@/types";
 
 export default function HomePage() {
+  const router = useRouter();
+  const { profile: userProfile, saveProfile } = usePlayerProfileState();
+  const [isNameModalOpen, setIsNameModalOpen] = useState(false);
+  const [pendingCharId, setPendingCharId] = useState<string | null>(null);
+
+  const handleSelectCharacter = (charId: string) => {
+    if (!userProfile) {
+      setPendingCharId(charId);
+      setIsNameModalOpen(true);
+      return;
+    }
+    router.push(`/chat/${charId}`);
+  };
+
+  const handleNameSubmit = (name: string) => {
+    const nextProfile: UserProfile = {
+      name,
+      createdAt: userProfile?.createdAt ?? Date.now(),
+    };
+    saveProfile(nextProfile);
+    setIsNameModalOpen(false);
+    if (pendingCharId) {
+      router.push(`/chat/${pendingCharId}`);
+      setPendingCharId(null);
+    }
+  };
+
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col gap-8 px-5 py-10">
       <header className="text-center">
         <p className="text-xs font-semibold tracking-[0.3em] text-rose-400">
           TAKANE NO HANAKO-SAN
         </p>
-        <h1 className="mt-2 text-3xl font-bold text-slate-800">
-          高嶺の花子さん
-        </h1>
+        <div className="mt-2 flex flex-col items-center gap-2 sm:flex-row sm:justify-between sm:text-left">
+          <h1 className="text-3xl font-bold text-slate-800">高嶺の花子さん</h1>
+          {userProfile ? (
+            <button
+              type="button"
+              onClick={() => setIsNameModalOpen(true)}
+              className="text-sm text-gray-500 transition hover:text-rose-500"
+              title="名前を変更"
+              aria-label="名前を変更"
+            >
+              ⚙️
+            </button>
+          ) : null}
+        </div>
         <p className="mt-3 text-sm leading-relaxed text-slate-600">
           高嶺の花とチャット。
           <br />
@@ -45,10 +89,11 @@ export default function HomePage() {
           話せる相手
         </h2>
         {characterList.map((c) => (
-          <Link
+          <button
             key={c.id}
-            href={`/chat/${c.id}`}
-            className="group flex items-center gap-4 rounded-2xl border border-rose-100 bg-white px-4 py-4 shadow-sm transition hover:-translate-y-0.5 hover:border-rose-300 hover:shadow-md"
+            type="button"
+            onClick={() => handleSelectCharacter(c.id)}
+            className="group flex w-full cursor-pointer items-center gap-4 rounded-2xl border border-rose-100 bg-white px-4 py-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-rose-300 hover:shadow-md"
           >
             <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-2xl bg-gradient-to-br from-rose-100 to-pink-200 ring-1 ring-rose-100">
               <Image
@@ -57,11 +102,11 @@ export default function HomePage() {
                 fill
                 sizes="64px"
                 className="object-cover object-top"
-                priority
+                priority={c.id === characterList[0]?.id}
               />
             </div>
-            <div className="flex-1">
-              <div className="flex items-baseline gap-2">
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-baseline gap-2">
                 <span className="text-base font-semibold text-slate-800">
                   {c.name}
                 </span>
@@ -80,7 +125,7 @@ export default function HomePage() {
             >
               ›
             </span>
-          </Link>
+          </button>
         ))}
       </section>
 
@@ -97,6 +142,13 @@ export default function HomePage() {
       <footer className="mt-auto pt-8 text-center text-[11px] text-slate-400">
         Powered by Gemini ・ for fun & practice
       </footer>
+
+      <UserNameModal
+        isOpen={isNameModalOpen}
+        initialName={userProfile?.name ?? ""}
+        onSubmit={handleNameSubmit}
+        onCancel={userProfile ? () => setIsNameModalOpen(false) : undefined}
+      />
     </main>
   );
 }

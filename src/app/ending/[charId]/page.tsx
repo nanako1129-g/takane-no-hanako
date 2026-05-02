@@ -86,7 +86,6 @@ export default function EndingPage({
     <main className="mx-auto flex min-h-dvh w-full max-w-lg flex-col items-center justify-center gap-8 bg-gradient-to-b from-white via-rose-50/40 to-white px-6 py-12 text-center">
       <div
         className={`flex w-full flex-col items-center gap-6 ${statsReady ? "animate-fade-ending" : "opacity-0"}`}
-
       >
         <p className="text-xs font-semibold tracking-[0.25em] text-rose-400">
           GOOD ENDING
