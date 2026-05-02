@@ -4,16 +4,25 @@ import {
   sanitizeAffinity,
   sanitizeCharId,
   sanitizeConversationMessages,
+  sanitizeInviteType,
   sanitizeModelReply,
+  sanitizeSystemPromptOverride,
+  sanitizeTeaDateCafeFlag,
+  sanitizeTeaDateBarFlag,
+  sanitizeTeaDateCafeMaxTurns,
+  sanitizeTeaDateCafeTurnsInScene,
   sanitizeUserMessage,
   LIMITS,
 } from "@/lib/apiValidation";
+import { interpolateCafeSceneSystemPrompt } from "@/lib/cafeScenePrompt";
 import { extractJson, getModel, toGeminiHistory } from "@/lib/gemini";
 import {
   buildInnerPrompt,
   buildInnerUserMessage,
   buildSurfacePrompt,
 } from "@/lib/prompts";
+import { buildAddressingGuidance, interpolateUserName } from "@/lib/promptInterpolate";
+import { sanitizeUserName } from "@/lib/userProfile";
 import type { ChatResponseBody } from "@/types";
 
 export const runtime = "nodejs";
@@ -34,7 +43,15 @@ export async function POST(req: Request) {
   }
 
   const b = body as Record<string, unknown>;
-  const charId = sanitizeCharId(b.charId);
+
+  let charId = sanitizeCharId(b.charId);
+  if (!charId && b.character != null && typeof b.character === "object") {
+    charId = sanitizeCharId(
+      (b.character as Record<string, unknown>).charId ??
+        (b.character as Record<string, unknown>).id
+    );
+  }
+
   const userMessage = sanitizeUserMessage(b.userMessage);
 
   if (!charId || !userMessage) {
@@ -53,6 +70,26 @@ export async function POST(req: Request) {
   }
 
   const affinity = sanitizeAffinity(b.affinity);
+  const inviteAcceptance = sanitizeInviteType(b.inviteType);
+  const teaDateCafe = sanitizeTeaDateCafeFlag(b.teaDateCafe);
+  const teaDateBar = sanitizeTeaDateBarFlag(b.teaDateBar);
+  const teaDateVenueMode: "cafe" | "bar" | null = teaDateCafe
+    ? "cafe"
+    : teaDateBar
+      ? "bar"
+      : null;
+  const teaDateCafeTurns = sanitizeTeaDateCafeTurnsInScene(b.turnsInScene);
+  const teaDateCafeMaxTurns = sanitizeTeaDateCafeMaxTurns(b.maxTurns);
+  const systemPromptOverride = sanitizeSystemPromptOverride(b.systemPromptOverride);
+  const rawUserName =
+    typeof b.userName === "string"
+      ? b.userName
+      : typeof b.playerDisplayName === "string"
+        ? b.playerDisplayName
+        : "";
+
+  const userName = sanitizeUserName(rawUserName) || "あなた";
+
   const messages = sanitizeConversationMessages(
     b.messages,
     LIMITS.MAX_CHAT_HISTORY_MESSAGES
@@ -65,8 +102,91 @@ export async function POST(req: Request) {
     );
   }
 
-  const surfaceModel = getModel(buildSurfacePrompt(character));
-  const innerModel = getModel(buildInnerPrompt(character));
+  const inviteFallback =
+    inviteAcceptance === "tea"
+      ? character.teaAcceptanceSystemPrompt?.trim() ?? ""
+      : inviteAcceptance === "drink"
+        ? character.barInviteAcceptanceSystemPrompt?.trim() ||
+          character.drinkAcceptanceSystemPrompt?.trim() ||
+          ""
+        : "";
+
+  const venueScenarioStatic =
+    teaDateVenueMode === "cafe"
+      ? character.teaDateScenePrompt?.trim() ?? ""
+      : "";
+
+  const venueScenarioDynamicRaw =
+    teaDateVenueMode === "cafe"
+      ? character.cafeSceneSystemPrompt?.trim() ?? ""
+      : teaDateVenueMode === "bar"
+        ? character.barSceneSystemPrompt?.trim() ?? ""
+        : "";
+  const venueScenarioDynamic =
+    teaDateVenueMode && venueScenarioDynamicRaw
+      ? interpolateCafeSceneSystemPrompt(
+          venueScenarioDynamicRaw,
+          teaDateCafeTurns,
+          teaDateCafeMaxTurns
+        )
+      : "";
+
+  const venueScenarioAppendUncapped =
+    teaDateVenueMode ?
+      [
+        venueScenarioStatic,
+        ...(venueScenarioDynamic ? [venueScenarioDynamic] : []),
+      ].filter(Boolean).join("\n\n")
+    : "";
+
+  const venueScenarioAppend =
+    teaDateVenueMode ?
+      venueScenarioAppendUncapped.slice(0, LIMITS.MAX_SYSTEM_PROMPT_APPEND)
+    : "";
+
+  const addressingGuidance = buildAddressingGuidance(userName, affinity);
+  const surfacePromptInterpolated = interpolateUserName(
+    buildSurfacePrompt(character),
+    userName
+  );
+  const innerPromptInterpolated = interpolateUserName(
+    buildInnerPrompt(character),
+    userName
+  );
+
+  const systemPromptInterpolated =
+    systemPromptOverride && systemPromptOverride.trim()
+      ? interpolateUserName(systemPromptOverride.trim(), userName)
+      : "";
+
+  const venuePromptInterpolated =
+    teaDateVenueMode && venueScenarioAppend
+      ? interpolateUserName(venueScenarioAppend, userName)
+      : "";
+
+  const inviteInterpolatedOnly =
+    !teaDateVenueMode &&
+    !(systemPromptOverride && systemPromptOverride.trim()) &&
+    inviteFallback.trim()
+      ? interpolateUserName(inviteFallback.trim(), userName)
+      : "";
+
+  const surfaceSystem = [
+    addressingGuidance,
+    surfacePromptInterpolated,
+    systemPromptInterpolated,
+    venuePromptInterpolated,
+    inviteInterpolatedOnly,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+
+  const innerSystem = [addressingGuidance, innerPromptInterpolated]
+    .filter(Boolean)
+    .join("\n\n");
+
+  const surfaceModel = getModel(surfaceSystem);
+  const innerModel = getModel(innerSystem);
 
   const surfacePromise = (async () => {
     const chat = surfaceModel.startChat({
@@ -87,7 +207,11 @@ export async function POST(req: Request) {
           role: "user",
           parts: [
             {
-              text: buildInnerUserMessage(userMessage, affinity),
+              text: buildInnerUserMessage(
+                userMessage,
+                affinity,
+                userName
+              ),
             },
           ],
         },

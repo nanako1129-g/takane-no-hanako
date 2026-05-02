@@ -25,14 +25,32 @@ export interface SimpleHistoryItem {
 }
 
 /**
- * Gemini の chat history は先頭が必ず user ロールである必要がある。
- * 先頭に assistant（=model）の発言が並んでいる場合は除外して、
- * 最初の user 発言から渡す。
+ * Gemini の chat history は先頭が必ず user ロールであり、かつ user / model が交互である必要がある。
+ * - 先頭に assistant だけ並ぶ場合は、最初の user までを捨てる。
+ * - 連続した同一ロールは本文を結合して 1 メッセージにまとめる（SDK のバリデーション回避）。
  */
 export function toGeminiHistory(messages: SimpleHistoryItem[]) {
   const firstUserIdx = messages.findIndex((m) => m.role === "user");
-  const sliced = firstUserIdx === -1 ? [] : messages.slice(firstUserIdx);
-  return sliced.map((m) => ({
+  if (firstUserIdx === -1) return [];
+
+  const flattened: SimpleHistoryItem[] = [];
+  for (let i = firstUserIdx; i < messages.length; i++) {
+    const m = messages[i];
+    const last = flattened[flattened.length - 1];
+    if (
+      last &&
+      last.role === m.role &&
+      typeof last.content === "string" &&
+      typeof m.content === "string"
+    ) {
+      const joined = `${last.content}\n${m.content}`.trim();
+      flattened[flattened.length - 1] = { role: last.role, content: joined };
+    } else {
+      flattened.push({ role: m.role, content: m.content });
+    }
+  }
+
+  return flattened.map((m) => ({
     role: m.role === "assistant" ? "model" : "user",
     parts: [{ text: m.content }],
   }));

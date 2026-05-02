@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
 const STORAGE_PREFIX = "affinity_";
 
@@ -42,13 +42,5 @@ export function useAffinity(charId: string, initialAffinity: number) {
     }
   }, [affinity, charId, hydrated]);
 
-  const applyChange = useCallback((delta: number) => {
-    setAffinity((prev) => clamp(prev + delta));
-  }, []);
-
-  const reset = useCallback(() => {
-    setAffinity(clamp(initialAffinity));
-  }, [initialAffinity]);
-
-  return { affinity, applyChange, reset, setAffinity, hydrated };
+  return { affinity, setAffinity, hydrated };
 }

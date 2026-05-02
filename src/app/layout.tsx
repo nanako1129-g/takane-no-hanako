@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { PlayerNameProvider } from "@/components/PlayerNameProvider";
 
 export const metadata: Metadata = {
   title: "高嶺の花子さん",
@@ -21,7 +22,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ja">
-      <body className="min-h-dvh antialiased">{children}</body>
+      <body className="min-h-dvh antialiased">
+        <PlayerNameProvider>{children}</PlayerNameProvider>
+      </body>
     </html>
   );
 }
