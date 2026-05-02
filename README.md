@@ -1,36 +1,146 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🌸 高嶺の花子さん（takane-no-hanako）
 
-## Getting Started
+こんにちは 👋  
 
-First, run the development server:
+このプロジェクトは、**チャットするときに「喋ってることが見える」のに加えて、「心のうちもちょっと覗ける」**、そんな甘ずっぱい会話アプリです。キャラとの距離が変わったり、喫茶やバーのシーンになったり…と、画面ごと楽しんで動きます 💬✨  
+
+中身では [Next.js](https://nextjs.org/) と [Gemini（Google の AI）](https://ai.google.dev/) が会話を考えています。**難しく覚えなくて OK**。触るときだけ下の順番どおり進めれば大丈夫です 🤝  
+
+---
+
+## 🎮 これで何ができるの？
+
+ざっくり言うとこんな感じです 👇  
+
+| アイコン | 内容 |
+|----------|------|
+| 💭 | **普通にチャット**：キャラが返してくれる |
+| 🎭 | **表面と内心**：言葉の裏にある「本心」側も読めるムード |
+| 💕 | **好感度**：話の流れで距離が変わって、見た目も変わったりする |
+| ☕️🍸 | **喫茶・バー**：場所が変わると見た目も空気もちょっと違う |
+| 🏁📊 | **エンディング・解析ページ**：ストーリーがひと段落したとき用の画面があるよ |
+
+サイトの住所（パス）の書きかたはこんなイメージです 🗺️  
+
+| URL の形 | 何してるとき？ |
+|-----------|----------------|
+| `/` | トップ。**名前入力**や**キャラを選ぶ**ところ |
+| `/chat/〇〇` | メインの**チャット画面**（〇〇 はキャラの ID） |
+| `/ending/〇〇` | **エンディング**っぽい画面 |
+| `/analysis/〇〇` | **解析**っぽい画面 |
+
+「〇〇」はプログラム用の名前なので、そのまんまコピペで覚える必要はなくて大丈夫です 😉  
+
+---
+
+## 🧰 中身って何つかってんの？
+
+難しく言うと「こういう道具箱」です。覚える必要ナシ！置いておくだけ 📦  
+
+- **Next.js 14**：Web アプリの土台・ページや API のひな形  
+- **React / TypeScript**：画面とコードの作法  
+- **Tailwind**：見た目のスタイル（色や余白）  
+- **Gemini**：ほんとの会話文をほぼ毎回流してくれる AI  
+
+---
+
+## ✅ 自分のパソコンで動かすまで（3ステップ）
+
+### 0️⃣ そもそも必要なもの
+
+- **Node.js** が入っていること（入ってなければ [nodejs.org](https://nodejs.org/) からインストール。LTS で OK）  
+- **npm**：だいたい Node と一緒についてきます ✅  
+
+---
+
+### 1️⃣ 材料をそろえる
+
+ターミナルで、このフォルダに入ってから：
+
+```bash
+npm install
+```
+
+→ 「このアプリが動くのに必要な小さな部品」をまとめて拾ってくるコマンドです 📥  
+
+---
+
+### 2️⃣ 「Gemini に話しかけるための鍵」を置く 🔑  
+
+AI に質問するとき、その人（サーバー）専用の**秘密の合言葉**が要ります。それが **`GEMINI_API_KEY`** で、自分の鍵だけをファイルに書きます。**GitHub に上げちゃダメ絶対** 🙅‍♀️  
+
+まずひな形をコピー：
+
+```bash
+cp .env.local.example .env.local
+```
+
+続いて `.env.local` を開いて、中身をこんなかんじにします（※ `your_gemini_api_key_here` のところを**あなたの本物の鍵**に差し替え）：
+
+```
+GEMINI_API_KEY=そこにあなたのキーをペタッ
+```
+
+鍵は [Google AI Studio の API key ページ](https://aistudio.google.com/apikey) などで発行できます（ログインすると作れることが多いです） 🔐  
+
+---
+
+### 3️⃣ 起動！ 🚀
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+ブラウザで **http://localhost:3000** を開いてみてください。**花子さんとこんにちは**のトーンになってたら勝ちです 🎉  
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 🛠 たまにつかうコマンド集
 
-## Learn More
+```bash
+# 開発中はだいたいこれだけで OK（ホットリロード付き）
+npm run dev
 
-To learn more about Next.js, take a look at the following resources:
+# 本番用にコンパクトにまとめたいとき
+npm run build
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+# build のあと、そのまんまサーバーだけ動かしたいとき
+npm run start
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+# コードの作法チェック（慣れたら）
+npm run lint
+```
 
-## Deploy on Vercel
+---
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## 📁 フォルダの「なんとなく」の地図
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+カスタムしたくなったときの目印です 👀  
+
+| フォルダ | ざっくり何？ |
+|----------|----------------|
+| `src/app/` | ページの構成と、`/api/chat` など「裏側の処理」への入口 |
+| `src/components/` | チャット画面の部品・アニメ気味のレイアウトなど |
+| `src/characters/` | **キャラの設定だらけ**。セリフや好感度や画像パスなど |
+| `src/lib/` | Gemini へのお願い文を組み立てたり、安全チェックしたり |
+| `public/` | 画像たち（立ち絵・背景など）が並んでる場所 |
+
+キャラを増やしたいときは、`src/characters/` をいじって型（`src/types/`）とも仲良くする感じになります 🔧  
+
+---
+
+## ☁️ インターネットの向こうにも置きたい人向け（デプロイ）
+
+[Vercel](https://vercel.com/) とかを使うと、このアプリを URL で公開できます 🌍  
+
+そのときも **`GEMINI_API_KEY` は「ホスト側の環境変数」として設定**してください。ソースコードや README にべた書きしないのが鉄則です 🛡️  
+
+---
+
+## 🙌 ひとこと
+
+細かいところはよくわかんなくても、**名前入れて → チャットして → 反応楽しむ**だけで大丈夫です。また改造したくなったら、この README とフォルダ地図を眺めればなんとなく道が見えるはず 🤍  
+
+---
+
+元になるテンプレートは [create-next-app](https://nextjs.org/docs/app/api-reference/cli/create-next-app) さんより 🙏  
