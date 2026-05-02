@@ -1,12 +1,15 @@
 import { NextResponse } from "next/server";
-import { getCharacter } from "@/characters/hanasaki";
+import { getCharacter } from "@/characters";
+import {
+  LIMITS,
+  sanitizeAnalysisBullets,
+  sanitizeAnalysisComment,
+  sanitizeCharId,
+  sanitizeConversationMessages,
+} from "@/lib/apiValidation";
 import { extractJson, getModel } from "@/lib/gemini";
 import { buildAnalysisPrompt, buildAnalysisUserMessage } from "@/lib/prompts";
-import type {
-  AnalysisAxes,
-  AnalysisResult,
-  AnalyzeRequestBody,
-} from "@/types";
+import type { AnalysisAxes, AnalysisResult } from "@/types";
 
 export const runtime = "nodejs";
 
@@ -23,17 +26,10 @@ function clampScore(value: unknown): number {
   return Math.max(0, Math.min(100, Math.round(value)));
 }
 
-function ensureStringArray(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-  return value
-    .filter((v): v is string => typeof v === "string" && v.trim().length > 0)
-    .slice(0, 5);
-}
-
 export async function POST(req: Request) {
-  let body: AnalyzeRequestBody;
+  let body: unknown;
   try {
-    body = (await req.json()) as AnalyzeRequestBody;
+    body = await req.json();
   } catch {
     return NextResponse.json(
       { error: "Invalid JSON body" },
@@ -41,25 +37,35 @@ export async function POST(req: Request) {
     );
   }
 
-  const { charId, messages } = body;
-  if (!charId || !Array.isArray(messages) || messages.length === 0) {
+  if (!body || typeof body !== "object") {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+  }
+
+  const b = body as Record<string, unknown>;
+  const charId = sanitizeCharId(b.charId);
+  const messages = sanitizeConversationMessages(
+    b.messages,
+    LIMITS.MAX_ANALYSIS_MESSAGES
+  );
+
+  if (!charId || messages.length === 0) {
     return NextResponse.json(
-      { error: "charId と messages（非空）が必要です" },
+      {
+        error:
+          "無効なリクエストです。会話が空か、許容件数・文字数を超えています。",
+      },
       { status: 400 }
     );
   }
 
   const character = getCharacter(charId);
   if (!character) {
-    return NextResponse.json(
-      { error: `Unknown character: ${charId}` },
-      { status: 404 }
-    );
+    return NextResponse.json({ error: "Character not found." }, { status: 404 });
   }
 
   if (!process.env.GEMINI_API_KEY) {
     return NextResponse.json(
-      { error: "GEMINI_API_KEY が未設定です。" },
+      { error: "サーバーが正しく設定されていません。" },
       { status: 500 }
     );
   }
@@ -106,17 +112,16 @@ export async function POST(req: Request) {
     const analysis: AnalysisResult = {
       totalScore: clampScore(parsed.totalScore),
       axes,
-      goodPoints: ensureStringArray(parsed.goodPoints),
-      improvements: ensureStringArray(parsed.improvements),
-      comment:
-        typeof parsed.comment === "string" ? parsed.comment : undefined,
+      goodPoints: sanitizeAnalysisBullets(parsed.goodPoints),
+      improvements: sanitizeAnalysisBullets(parsed.improvements),
+      comment: sanitizeAnalysisComment(parsed.comment) ?? "",
     };
 
     return NextResponse.json(analysis);
   } catch (err) {
-    console.error("[analyze] failed", err);
+    console.error("[analyze] failed", err instanceof Error ? err.message : err);
     return NextResponse.json(
-      { error: "分析に失敗しました。時間をおいて再度お試しください。" },
+      { error: "分析処理に失敗しました。時間をおいて再度お試しください。" },
       { status: 500 }
     );
   }

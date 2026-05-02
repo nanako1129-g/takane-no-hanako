@@ -1,8 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { hanasaki } from "@/characters/hanasaki";
-
-const characters = [hanasaki];
+import { characterList, hanasaki } from "@/characters";
 
 export default function HomePage() {
   return (
@@ -24,7 +22,7 @@ export default function HomePage() {
 
       <div className="relative mx-auto aspect-[3/4] w-full max-w-[280px] overflow-hidden rounded-3xl bg-gradient-to-br from-rose-100 via-white to-pink-100 shadow-md ring-1 ring-rose-100">
         <Image
-          src={hanasaki.images.smile}
+          src={hanasaki.images.happy}
           alt={hanasaki.name}
           fill
           sizes="(max-width: 768px) 80vw, 280px"
@@ -46,7 +44,7 @@ export default function HomePage() {
         <h2 className="px-1 text-xs font-semibold uppercase tracking-wider text-slate-500">
           話せる相手
         </h2>
-        {characters.map((c) => (
+        {characterList.map((c) => (
           <Link
             key={c.id}
             href={`/chat/${c.id}`}
@@ -54,7 +52,7 @@ export default function HomePage() {
           >
             <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-2xl bg-gradient-to-br from-rose-100 to-pink-200 ring-1 ring-rose-100">
               <Image
-                src={c.images.smile}
+                src={c.images.happy}
                 alt={c.name}
                 fill
                 sizes="64px"

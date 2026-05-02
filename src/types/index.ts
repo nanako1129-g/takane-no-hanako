@@ -1,77 +1,78 @@
-export type Role = "user" | "assistant";
+export type Role = "user" | "assistant" | "system";
 
-export interface Message {
-  id: string;
-  role: Role;
-  content: string;
-  inner?: string;
-  affinityChange?: number;
-  createdAt: number;
-  /** ユーザー送信のみ。セット時は主に sticker 表示／API用は stampLabel で補完 */
-  stampId?: string;
-  stampLabel?: string;
-}
+export type CharacterImageSet = {
+  baseline: string;
+  happy: string;
+  cool: string;
+};
 
-export interface ChatRequestBody {
-  charId: string;
-  messages: Pick<Message, "role" | "content">[];
-  userMessage: string;
-  affinity: number;
-}
-
-export interface ChatResponseBody {
-  reply: string;
-  inner: string;
-  affinityChange: number;
-}
-
-export interface AnalyzeRequestBody {
-  charId: string;
-  messages: Pick<Message, "role" | "content">[];
-}
-
-export interface AnalysisAxes {
-  listening: number;
-  expressing: number;
-  acting: number;
-  protecting: number;
-  perceiving: number;
-}
-
-export interface AnalysisResult {
-  totalScore: number;
-  axes: AnalysisAxes;
-  goodPoints: string[];
-  improvements: string[];
-  comment?: string;
-}
-
-export interface CharacterImageSet {
-  /** 通常〜やや好印象（中間） */
-  neutral: string;
-  /** 好感度が高いときの笑顔 */
-  smile: string;
-  /** 距離が縮まり打ち解けたとき */
-  relaxed: string;
-}
-
-export interface CharacterBackstory {
+export type CharacterBackstory = {
   marriage: string;
   reason: string;
   current: string;
-}
+};
 
-export interface CharacterConfig {
+export type CharacterConfig = {
   id: string;
   name: string;
   displayName: string;
   age: number;
   occupation: string;
-  /** オプションの人物背景（UIや将来の拡張用） */
-  backstory?: CharacterBackstory;
+  backstory: CharacterBackstory;
   surfacePrompt: string;
   innerPrompt: string;
   initialAffinity: number;
   greeting: string;
+  /** 立ち絵・表情差分（public 配下のパス） */
   images: CharacterImageSet;
-}
+};
+
+/** 複数キャラ対応時のエイリアス */
+export type Character = CharacterConfig;
+
+export type Message = {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  createdAt: number;
+  stampId?: string;
+  stampLabel?: string;
+  inner?: string;
+  affinityChange?: number;
+};
+
+export type ChatResponseBody = {
+  reply: string;
+  inner: string;
+  affinityChange: number;
+};
+
+export type AnalysisAxes = {
+  listening: number;
+  expressing: number;
+  acting: number;
+  protecting: number;
+  perceiving: number;
+};
+
+export type AnalysisResult = {
+  totalScore: number;
+  axes: AnalysisAxes;
+  goodPoints: string[];
+  improvements: string[];
+  comment: string;
+};
+
+/** チャット表示モード。現状は line のみ。scene / call は将来対応 */
+export type ChatMode = "line" | "scene" | "call";
+
+/** シーンイベントの拡張用プレースホルダー型（イベント再生・個別画像等は未実装） */
+export type SceneEvent = {
+  id: string;
+  triggerAffinity: number;
+  location: string;
+  backgroundImage: string;
+  characterImage: string;
+  introMessage: string;
+  systemPromptOverride: string;
+};

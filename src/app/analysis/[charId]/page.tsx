@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { getCharacter } from "@/characters/hanasaki";
+import { getCharacter } from "@/characters";
 import {
   clearCachedAnalysis,
   conversationFingerprint,
@@ -171,7 +171,7 @@ export default function AnalysisPage({
         </Link>
         <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full bg-gradient-to-br from-rose-100 to-pink-200 ring-1 ring-rose-100">
           <Image
-            src={character.images.smile}
+            src={character.images.happy}
             alt={character.name}
             fill
             sizes="40px"

@@ -1,19 +1,27 @@
 import { NextResponse } from "next/server";
-import { getCharacter } from "@/characters/hanasaki";
+import { getCharacter } from "@/characters";
+import {
+  sanitizeAffinity,
+  sanitizeCharId,
+  sanitizeConversationMessages,
+  sanitizeModelReply,
+  sanitizeUserMessage,
+  LIMITS,
+} from "@/lib/apiValidation";
 import { extractJson, getModel, toGeminiHistory } from "@/lib/gemini";
 import {
   buildInnerPrompt,
   buildInnerUserMessage,
   buildSurfacePrompt,
 } from "@/lib/prompts";
-import type { ChatRequestBody, ChatResponseBody } from "@/types";
+import type { ChatResponseBody } from "@/types";
 
 export const runtime = "nodejs";
 
 export async function POST(req: Request) {
-  let body: ChatRequestBody;
+  let body: unknown;
   try {
-    body = (await req.json()) as ChatRequestBody;
+    body = await req.json();
   } catch {
     return NextResponse.json(
       { error: "Invalid JSON body" },
@@ -21,29 +29,38 @@ export async function POST(req: Request) {
     );
   }
 
-  const { charId, messages, userMessage, affinity } = body;
+  if (!body || typeof body !== "object") {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+  }
+
+  const b = body as Record<string, unknown>;
+  const charId = sanitizeCharId(b.charId);
+  const userMessage = sanitizeUserMessage(b.userMessage);
 
   if (!charId || !userMessage) {
     return NextResponse.json(
-      { error: "charId and userMessage are required" },
+      {
+        error:
+          "無効なリクエストです。文字数が多すぎるか、必須項目が不足しています。",
+      },
       { status: 400 }
     );
   }
 
   const character = getCharacter(charId);
   if (!character) {
-    return NextResponse.json(
-      { error: `Unknown character: ${charId}` },
-      { status: 404 }
-    );
+    return NextResponse.json({ error: "Character not found." }, { status: 404 });
   }
+
+  const affinity = sanitizeAffinity(b.affinity);
+  const messages = sanitizeConversationMessages(
+    b.messages,
+    LIMITS.MAX_CHAT_HISTORY_MESSAGES
+  );
 
   if (!process.env.GEMINI_API_KEY) {
     return NextResponse.json(
-      {
-        error:
-          "GEMINI_API_KEY が未設定です。プロジェクトルートの .env.local に設定してください。",
-      },
+      { error: "サーバーが正しく設定されていません。" },
       { status: 500 }
     );
   }
@@ -51,27 +68,27 @@ export async function POST(req: Request) {
   const surfaceModel = getModel(buildSurfacePrompt(character));
   const innerModel = getModel(buildInnerPrompt(character));
 
-  // 表面応答 ─ 既存の会話履歴 + 今回のユーザー発言
   const surfacePromise = (async () => {
     const chat = surfaceModel.startChat({
-      history: toGeminiHistory(messages ?? []),
+      history: toGeminiHistory(messages),
       generationConfig: {
         temperature: 0.85,
         maxOutputTokens: 256,
       },
     });
     const result = await chat.sendMessage(userMessage);
-    return result.response.text().trim();
+    return sanitizeModelReply(result.response.text().trim());
   })();
 
-  // 内心生成 ─ 直前のユーザー発言 + 現在の好感度
   const innerPromise = (async () => {
     const result = await innerModel.generateContent({
       contents: [
         {
           role: "user",
           parts: [
-            { text: buildInnerUserMessage(userMessage, affinity) },
+            {
+              text: buildInnerUserMessage(userMessage, affinity),
+            },
           ],
         },
       ],
@@ -114,15 +131,21 @@ export async function POST(req: Request) {
         affinityChange?: unknown;
       };
       if (typeof json.inner === "string") {
-        inner = json.inner.slice(0, 60);
+        inner = sanitizeModelReply(json.inner).slice(0, 120);
       }
-      if (typeof json.affinityChange === "number" && Number.isFinite(json.affinityChange)) {
-        affinityChange = Math.max(-15, Math.min(15, Math.round(json.affinityChange)));
+      if (
+        typeof json.affinityChange === "number" &&
+        Number.isFinite(json.affinityChange)
+      ) {
+        affinityChange = Math.max(
+          -15,
+          Math.min(15, Math.round(json.affinityChange))
+        );
       }
-    } catch (err) {
-      console.error("[chat] inner JSON parse failed", err, innerSettled.value);
+    } catch {
       inner = "";
       affinityChange = 0;
+      console.error("[chat] inner JSON parse failed");
     }
   } else {
     const reason = innerSettled.reason;
