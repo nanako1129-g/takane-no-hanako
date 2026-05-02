@@ -20,6 +20,8 @@ const DEFAULT_TEA_DATE_CAFE_INTRO =
 const CAFE_SOLO_HOLD_MS = 550;
 const CAFE_PAIR_CROSS_MS = 880;
 const CAFE_POST_AMBIENT_MS = 200;
+/** このターン数に達したらアップ写真へクロスフェード */
+const CAFE_PORTRAIT_SWITCH_TURNS = 2;
 
 function newMsgId(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -80,8 +82,14 @@ export function TeaDateCafePanel({
   const resolvedSingleBg = !hasPairCafe ? legacyBgSrc : null;
   const showSceneHero = hasPairCafe || Boolean(resolvedSingleBg);
 
-  const [entranceDone, setEntranceDone] = useState(() => !hasPairCafe);
-  const [pairLayerVisible, setPairLayerVisible] = useState(() => !hasPairCafe);
+  const [entranceDone, setEntranceDone] = useState(false);
+  /**
+   * ペア画像の切り替えは入場アニメではなくターン数で制御。
+   * - 0〜(CAFE_PORTRAIT_SWITCH_TURNS-1)ターン：広角写真
+   * - CAFE_PORTRAIT_SWITCH_TURNS以上：アップ写真にクロスフェード
+   */
+  const pairLayerVisible =
+    hasPairCafe && turnsInScene >= CAFE_PORTRAIT_SWITCH_TURNS;
 
   const userSays = messages.filter((m) => m.role === "user").length;
   const showLeavePrompt =
@@ -98,7 +106,6 @@ export function TeaDateCafePanel({
   useTeaDateCafeAmbient(entranceDone && !leaving);
 
   useEffect(() => {
-    if (!hasPairCafe) return;
     let cancelled = false;
     const timers: number[] = [];
     const after = (ms: number, fn: () => void) => {
@@ -109,17 +116,14 @@ export function TeaDateCafePanel({
       );
     };
 
-    after(CAFE_SOLO_HOLD_MS, () => setPairLayerVisible(true));
-    after(
-      CAFE_SOLO_HOLD_MS + CAFE_PAIR_CROSS_MS + CAFE_POST_AMBIENT_MS,
-      () => setEntranceDone(true)
-    );
+    // 入場アニメはワイド写真を表示した後そのまま完了（切り替えはターン数に委ねる）
+    after(CAFE_SOLO_HOLD_MS + CAFE_POST_AMBIENT_MS, () => setEntranceDone(true));
 
     return () => {
       cancelled = true;
       timers.forEach(clearTimeout);
     };
-  }, [hasPairCafe]);
+  }, []);
 
   useEffect(() => {
     if (!entranceDone || introOnce.current) return;
