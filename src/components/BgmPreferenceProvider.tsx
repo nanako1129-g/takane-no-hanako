@@ -73,7 +73,47 @@ export function BgmPreferenceProvider({
   );
 }
 
-/** 画面上部のコンパクト BGM 切替（全シーン共通） */
+function bgmToggleBtnClass(enabled: boolean): string {
+  return [
+    "inline-flex items-center gap-1.5 rounded-full border text-[10px] font-semibold shadow-sm backdrop-blur-md transition active:scale-[0.97] sm:text-[11px]",
+    enabled
+      ? "border-rose-200/70 bg-white/92 text-slate-800 hover:bg-rose-50/95"
+      : "border-slate-300/80 bg-slate-800/88 text-slate-100 hover:bg-slate-700/90",
+  ].join(" ");
+}
+
+/** チャットヘッダーなどに埋め込むコンパクト BGM 切替 */
+export function BgmToggleButton({
+  className,
+}: {
+  className?: string;
+}) {
+  const ctx = useContext(BgmPreferenceContext);
+  if (!ctx?.hydrated) return null;
+
+  const { enabled, toggle } = ctx;
+
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={enabled}
+      aria-label={enabled ? "BGMをオフにする" : "BGMをオンにする"}
+      onClick={() => toggle()}
+      className={`${bgmToggleBtnClass(enabled)} shrink-0 whitespace-nowrap px-2 py-1.5 sm:px-3 ${className ?? ""}`}
+    >
+      <span aria-hidden className="text-sm leading-none">
+        {enabled ? "🔊" : "🔇"}
+      </span>
+      <span>
+        BGM{" "}
+        <span className="font-bold">{enabled ? "ON" : "OFF"}</span>
+      </span>
+    </button>
+  );
+}
+
+/** 画面上部のコンパクト BGM 切替（`/chat/*` 以外・全シーン共通） */
 export function BgmFloatingToggle() {
   const ctx = useContext(BgmPreferenceContext);
   if (!ctx?.hydrated) return null;
@@ -82,7 +122,7 @@ export function BgmFloatingToggle() {
 
   return (
     <div
-      className="fixed right-3 z-[200] max-w-[min(100vw-1.5rem,200px)]"
+      className="fixed right-2 z-[200] max-w-[min(100vw-1rem,200px)] sm:right-3"
       style={{
         top: "max(8px, env(safe-area-inset-top, 0px))",
       }}
@@ -93,12 +133,7 @@ export function BgmFloatingToggle() {
         aria-checked={enabled}
         aria-label={enabled ? "BGMをオフにする" : "BGMをオンにする"}
         onClick={() => toggle()}
-        className={[
-          "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-semibold shadow-md backdrop-blur-md transition active:scale-[0.97]",
-          enabled
-            ? "border-rose-200/70 bg-white/92 text-slate-800 hover:bg-rose-50/95"
-            : "border-slate-300/80 bg-slate-800/88 text-slate-100 hover:bg-slate-700/90",
-        ].join(" ")}
+        className={`${bgmToggleBtnClass(enabled)} px-3 py-1.5 shadow-md`}
       >
         <span aria-hidden className="text-sm">
           {enabled ? "🔊" : "🔇"}

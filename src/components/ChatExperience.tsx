@@ -14,6 +14,10 @@ import {
 import { ChatBubble } from "@/components/ChatBubble";
 import { CharacterPortrait } from "@/components/CharacterPortrait";
 import { DateInviteButtons } from "@/components/DateInviteButtons";
+import { AffinityDemoToolbar } from "@/components/AffinityDemoToolbar";
+import {
+  BgmToggleButton,
+} from "@/components/BgmPreferenceProvider";
 import { HeartIndicator } from "@/components/HeartIndicator";
 import { MessageInput } from "@/components/MessageInput";
 import { StampPicker } from "@/components/StampPicker";
@@ -26,6 +30,10 @@ import {
   pickCharacterPortrait,
 } from "@/characters";
 import { clearCachedAnalysis } from "@/lib/analysisCache";
+import {
+  showChatAffinityDemoTools,
+  showChatResetButton,
+} from "@/lib/chatDevTools";
 import {
   clearIntimateSecretShown,
   loadIntimateSecretShown,
@@ -90,9 +98,6 @@ const DEFAULT_BAR_DATE_FAREWELL_LINE =
 
 /** バー退店〜LINE復帰で加算する好感度（`CharacterConfig.barDateAffinityBonusOnLeave` が無いとき） */
 const DEFAULT_BAR_LEAVE_AFFINITY_BONUS = 12;
-
-/** リセット実行後に戻す好感度（やり直し開始ライン） */
-const RESET_AFFINITY = 60;
 
 function clampAffinity(n: number): number {
   if (!Number.isFinite(n)) return 0;
@@ -170,6 +175,10 @@ export default function ChatExperience({
 
   const venueUiOpen =
     sceneState.mode === "cafe" || sceneState.mode === "bar";
+
+  /** `npm run dev` または `NEXT_PUBLIC_DEV_TOOLS=1`（ハッカソン即席デモ） */
+  const showAffinityDemoTools = showChatAffinityDemoTools();
+  const showResetButton = showChatResetButton();
 
   const proposalThreshold = character.proposalThreshold;
   const proposalText = useMemo(() => {
@@ -605,7 +614,7 @@ export default function ChatExperience({
     if (
       typeof window !== "undefined" &&
       !window.confirm(
-        "会話履歴をリセットし、好感度を60からやり直します。よろしいですか？"
+        `会話履歴をリセットし、好感度をキャラ初期値（${character.initialAffinity}）に戻してやり直します。よろしいですか？`
       )
     ) {
       return;
@@ -615,7 +624,7 @@ export default function ChatExperience({
     setSending(false);
     setError(null);
 
-    setAffinity(clampAffinity(RESET_AFFINITY));
+    setAffinity(clampAffinity(character.initialAffinity));
     setMessages([]);
     setDateProgress(initialDateProgress);
     setProposalDelivered(false);
@@ -637,6 +646,37 @@ export default function ChatExperience({
       clearIntimateSecretShown(character.id);
     }
   }, [character, setAffinity]);
+
+  /** 開発デモ用：会話せず親密度のみ変更（解放トーストやデート進行も同期） */
+  const applyDemoAffinity = useCallback(
+    (nextRaw: number) => {
+      const newAffinity = clampAffinity(nextRaw);
+      setAffinity((prevAff) => {
+        const delta = newAffinity - prevAff;
+        if (delta !== 0) {
+          setAffinityPulse({
+            delta,
+            timestamp: Date.now(),
+          });
+        }
+        return newAffinity;
+      });
+      setDateProgress((prevProgress) => {
+        const updated = evaluateUnlocks(newAffinity, prevProgress, character);
+        if (!prevProgress.unlockedDrink && updated.unlockedDrink) {
+          queueMicrotask(() =>
+            setUnlockToast("🍶 「飲みに誘う」が解放されました")
+          );
+        } else if (!prevProgress.unlockedTea && updated.unlockedTea) {
+          queueMicrotask(() =>
+            setUnlockToast("🍵 「お茶に誘う」が解放されました")
+          );
+        }
+        return updated;
+      });
+    },
+    [character, setAffinity]
+  );
 
   const handleInvite = useCallback(
     async (type: DateInviteType) => {
@@ -676,24 +716,6 @@ export default function ChatExperience({
       )
     );
   }, []);
-
-  const handleDebugAffinity95 = useCallback(() => {
-    const newAffinity = clampAffinity(95);
-    const prevProgress = dateProgress;
-    const updated = evaluateUnlocks(newAffinity, prevProgress, character);
-
-    setAffinity(newAffinity);
-
-    setAffinityPulse({ delta: newAffinity - affinity, timestamp: Date.now() });
-
-    setDateProgress(updated);
-
-    if (!prevProgress.unlockedDrink && updated.unlockedDrink) {
-      setUnlockToast("🍶 「飲みに誘う」が解放されました");
-    } else if (!prevProgress.unlockedTea && updated.unlockedTea) {
-      setUnlockToast("🍵 「お茶に誘う」が解放されました");
-    }
-  }, [affinity, character, dateProgress, setAffinity]);
 
   const teaDatePortraitSrc = useMemo(() => {
     return (
@@ -887,58 +909,68 @@ export default function ChatExperience({
 
       {/* チャット本体 */}
       <section className="flex min-h-0 flex-col overflow-hidden bg-rose-50/40">
-        {/* ヘッダー（ハート好感度インジケータ） */}
-        <header className="sticky top-0 z-10 flex shrink-0 flex-wrap items-center gap-2 border-b border-rose-100 bg-white/90 px-3 py-2 backdrop-blur sm:gap-3 sm:px-4 sm:py-3">
-          <Link
-            href="/"
-            className="rounded-full px-2 py-1 text-sm text-slate-500 transition hover:bg-rose-50 hover:text-rose-500"
-            aria-label="ホームに戻る"
-          >
-            ‹
-          </Link>
-          <div className="flex min-w-0 flex-1 items-center gap-2">
-            <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full bg-gradient-to-br from-rose-100 to-pink-200 ring-1 ring-rose-100">
-              {headerPortraitSrc ? (
-                <Image
-                  src={headerPortraitSrc}
-                  alt={character.name}
-                  fill
-                  sizes="40px"
-                  className="object-cover object-top transition-opacity duration-500"
-                  key={headerPortraitSrc}
-                />
-              ) : null}
+        {/* ヘッダー：左プロフィール / 中央ハート / 右リセット・BGM（狭い画面でも被らないよう3カラム） */}
+        <header className="sticky top-0 z-10 flex shrink-0 flex-col border-b border-rose-100 bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/85">
+          <div className="grid min-h-[3.25rem] grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-x-1 px-2 py-2 sm:gap-x-2 sm:px-4 sm:py-3">
+            <div className="flex min-w-0 items-center gap-1 sm:gap-2">
+              <Link
+                href="/"
+                className="shrink-0 rounded-full px-2 py-1 text-sm text-slate-500 transition hover:bg-rose-50 hover:text-rose-500"
+                aria-label="ホームに戻る"
+              >
+                ‹
+              </Link>
+              <div className="flex min-w-0 flex-1 items-center gap-2">
+                <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full bg-gradient-to-br from-rose-100 to-pink-200 ring-1 ring-rose-100">
+                  {headerPortraitSrc ? (
+                    <Image
+                      src={headerPortraitSrc}
+                      alt={character.name}
+                      fill
+                      sizes="40px"
+                      className="object-cover object-top transition-opacity duration-500"
+                      key={headerPortraitSrc}
+                    />
+                  ) : null}
+                </div>
+                <div className="min-w-0 leading-tight">
+                  <p className="truncate text-sm font-semibold text-slate-800">
+                    {character.name}
+                  </p>
+                  <p className="truncate text-[11px] text-slate-500">
+                    {character.occupation}
+                  </p>
+                </div>
+              </div>
             </div>
-            <div className="min-w-0 leading-tight">
-              <p className="truncate text-sm font-semibold text-slate-800">
-                {character.name}
-              </p>
-              <p className="truncate text-[11px] text-slate-500">
-                {character.occupation}
-              </p>
+            <div className="flex justify-center self-center px-0.5 sm:px-1">
+              <HeartIndicator affinity={affinity} pulse={affinityPulse} />
             </div>
-          </div>
-          <div className="ml-auto flex shrink-0 items-center gap-2 sm:ml-0">
-            <HeartIndicator affinity={affinity} pulse={affinityPulse} />
-            <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
-              {process.env.NODE_ENV === "development" ? (
+            <div className="flex min-w-0 items-center justify-end gap-1.5 sm:gap-2">
+              {showResetButton ? (
                 <button
                   type="button"
-                  onClick={handleDebugAffinity95}
-                  className="rounded-full border border-amber-200 bg-amber-50/90 px-2 py-0.5 text-[10px] font-medium text-amber-900 transition hover:bg-amber-100"
+                  onClick={handleReset}
+                  className="shrink-0 rounded-full border border-slate-200 px-2 py-1 text-[10px] text-slate-600 transition hover:border-rose-200 hover:text-rose-600 sm:px-2.5 sm:text-[11px]"
                 >
-                  DEBUG: 好感度95
+                  リセット
                 </button>
               ) : null}
-              <button
-                type="button"
-                onClick={handleReset}
-                className="rounded-full border border-slate-200 px-2.5 py-1 text-[11px] text-slate-500 transition hover:border-rose-200 hover:text-rose-500"
-              >
-                リセット
-              </button>
+              <BgmToggleButton />
             </div>
           </div>
+          {showAffinityDemoTools ? (
+            <AffinityDemoToolbar
+              affinity={affinity}
+              initialAffinity={character.initialAffinity}
+              proposalThreshold={
+                typeof proposalThreshold === "number"
+                  ? proposalThreshold
+                  : undefined
+              }
+              onSetAffinity={applyDemoAffinity}
+            />
+          ) : null}
         </header>
 
         {/* メッセージ一覧 */}
