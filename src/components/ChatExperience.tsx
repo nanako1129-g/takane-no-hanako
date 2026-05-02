@@ -678,7 +678,7 @@ export default function ChatExperience({
       clearCachedAnalysis(character.id);
       clearIntimateSecretShown(character.id);
     }
-  }, [character, setAffinity]);
+  }, [character, setAffinity, setAwaitingTeaOuting, setAwaitingDrinkOuting]);
 
   /** 開発デモ用：会話せず親密度のみ変更（解放トーストやデート進行も同期） */
   const applyDemoAffinity = useCallback(
@@ -779,7 +779,7 @@ export default function ChatExperience({
     setSending(false);
     setError(null);
     setAffinityPulse(null);
-  }, []);
+  }, [setAwaitingTeaOuting]);
 
   const interruptTeaDateCafeWithoutProgress = useCallback(() => {
     conversationEpochRef.current += 1;
@@ -795,7 +795,7 @@ export default function ChatExperience({
     setSending(false);
     setError(null);
     setAffinityPulse(null);
-  }, []);
+  }, [setAwaitingDrinkOuting]);
 
   const interruptBarVenueWithoutProgress = useCallback(() => {
     conversationEpochRef.current += 1;
@@ -1150,6 +1150,7 @@ export default function ChatExperience({
           key={teaDateSessionKey}
           character={character}
           affinity={affinity}
+          affinityPulse={affinityPulse}
           userName={chatUserName}
           introTemplateUserName={userProfile?.name ?? ""}
           portraitSrc={teaDatePortraitSrc}
