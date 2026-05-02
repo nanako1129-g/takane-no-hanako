@@ -50,6 +50,8 @@ export type TeaDateCafePanelProps = {
   onFinishedTeaDate: () => void;
   /** ヘッダーからの中断（teaCount は増やさず、約束のみ継続） */
   onInterruptTeaDate: () => void;
+  /** `setLeaving(true)` と同タイミングで呼ばれる（親側の暗転用） */
+  onBeforeLeave?: () => void;
 };
 
 export function TeaDateCafePanel({
@@ -66,6 +68,7 @@ export function TeaDateCafePanel({
   onAffinityDelta,
   onFinishedTeaDate,
   onInterruptTeaDate,
+  onBeforeLeave,
 }: TeaDateCafePanelProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [sending, setSending] = useState(false);
@@ -157,12 +160,13 @@ export function TeaDateCafePanel({
 
   const departCafe = useCallback(() => {
     if (leaving) return;
+    onBeforeLeave?.();
     setLeaving(true);
     setError(null);
     window.setTimeout(() => {
       onFinishedTeaDate();
     }, 400);
-  }, [leaving, onFinishedTeaDate]);
+  }, [leaving, onBeforeLeave, onFinishedTeaDate]);
 
   departCafeRef.current = departCafe;
 
@@ -186,12 +190,13 @@ export function TeaDateCafePanel({
     ) {
       return;
     }
+    onBeforeLeave?.();
     setLeaving(true);
     setError(null);
     window.setTimeout(() => {
       onInterruptTeaDate();
     }, 400);
-  }, [leaving, entranceDone, userSays, onInterruptTeaDate]);
+  }, [leaving, entranceDone, userSays, onBeforeLeave, onInterruptTeaDate]);
 
   const submitCafe = useCallback(
     async (text: string) => {

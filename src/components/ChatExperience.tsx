@@ -132,6 +132,9 @@ export default function ChatExperience({
     hydrated: affinityHydrated,
   } = useAffinity(character.id, character.initialAffinity);
 
+  /** シーン遷移時の暗転オーバーレイ制御 */
+  const [sceneDim, setSceneDim] = useState(false);
+
   const [messages, setMessages] = useState<Message[]>([]);
   const [historyHydrated, setHistoryHydrated] = useState(false);
   const [sending, setSending] = useState(false);
@@ -772,35 +775,40 @@ export default function ChatExperience({
   }, []);
 
   const enterTeaDateCafeScene = useCallback(() => {
-    conversationEpochRef.current += 1;
-    setTeaDateSessionKey((k) => k + 1);
-    setAwaitingTeaOuting(false);
-    setSceneState(venueSceneState("cafe"));
-    setSending(false);
-    setError(null);
-    setAffinityPulse(null);
+    setSceneDim(true);
+    window.setTimeout(() => {
+      conversationEpochRef.current += 1;
+      setTeaDateSessionKey((k) => k + 1);
+      setAwaitingTeaOuting(false);
+      setSceneState(venueSceneState("cafe"));
+      setSending(false);
+      setError(null);
+      setAffinityPulse(null);
+      // 会場パネルが z-[100] で覆った後にオーバーレイを消す
+      window.setTimeout(() => setSceneDim(false), 120);
+    }, 300);
   }, [setAwaitingTeaOuting]);
 
-  const interruptTeaDateCafeWithoutProgress = useCallback(() => {
-    conversationEpochRef.current += 1;
-    setSceneState(lineSceneState());
-    setTeaDateSessionKey((k) => k + 1);
-  }, []);
-
   const enterBarVenueScene = useCallback(() => {
-    conversationEpochRef.current += 1;
-    setTeaDateSessionKey((k) => k + 1);
-    setAwaitingDrinkOuting(false);
-    setSceneState(venueSceneState("bar"));
-    setSending(false);
-    setError(null);
-    setAffinityPulse(null);
+    setSceneDim(true);
+    window.setTimeout(() => {
+      conversationEpochRef.current += 1;
+      setTeaDateSessionKey((k) => k + 1);
+      setAwaitingDrinkOuting(false);
+      setSceneState(venueSceneState("bar"));
+      setSending(false);
+      setError(null);
+      setAffinityPulse(null);
+      window.setTimeout(() => setSceneDim(false), 120);
+    }, 300);
   }, [setAwaitingDrinkOuting]);
 
   const interruptBarVenueWithoutProgress = useCallback(() => {
+    // onBeforeLeave 経由で sceneDim=true になった後にここが呼ばれる
     conversationEpochRef.current += 1;
     setSceneState(lineSceneState());
     setTeaDateSessionKey((k) => k + 1);
+    window.setTimeout(() => setSceneDim(false), 380);
   }, []);
 
   const finishBarDateAndReturnLine = useCallback(() => {
@@ -842,6 +850,7 @@ export default function ChatExperience({
     ]);
 
     setTeaDateSessionKey((k) => k + 1);
+    window.setTimeout(() => setSceneDim(false), 380);
   }, [character, setAffinity, userProfile?.name]);
 
   const finishTeaDateAndReturnLine = useCallback(() => {
@@ -882,7 +891,15 @@ export default function ChatExperience({
     ]);
 
     setTeaDateSessionKey((k) => k + 1);
+    window.setTimeout(() => setSceneDim(false), 380);
   }, [character, userProfile?.name]);
+
+  const interruptTeaDateCafeWithoutProgress = useCallback(() => {
+    conversationEpochRef.current += 1;
+    setSceneState(lineSceneState());
+    setTeaDateSessionKey((k) => k + 1);
+    window.setTimeout(() => setSceneDim(false), 380);
+  }, []);
 
   const goAnalyze = useCallback(() => {
     router.push(`/analysis/${character.id}`);
@@ -909,6 +926,16 @@ export default function ChatExperience({
         : {})}
       className={`relative mx-auto grid h-dvh w-full max-w-full grid-rows-[auto_1fr] bg-rose-50/40 md:max-w-6xl md:grid-cols-[2fr_3fr] md:grid-rows-1 ${shellToneClass}`}
     >
+      {/* シーン遷移暗転オーバーレイ（z-[99]：会場パネルの z-[100] より一段下） */}
+      <div
+        aria-hidden
+        className="pointer-events-none fixed inset-0 z-[99] bg-black transition-opacity"
+        style={{
+          opacity: sceneDim ? 1 : 0,
+          transitionDuration: sceneDim ? "280ms" : "400ms",
+          transitionTimingFunction: sceneDim ? "ease-in" : "ease-out",
+        }}
+      />
       <UnlockToast
         message={unlockToast}
         onDismiss={() => setUnlockToast(null)}
@@ -1143,6 +1170,7 @@ export default function ChatExperience({
           onAffinityDelta={adjustAffinityFromCafeDelta}
           onFinishedTeaDate={finishTeaDateAndReturnLine}
           onInterruptTeaDate={interruptTeaDateCafeWithoutProgress}
+          onBeforeLeave={() => setSceneDim(true)}
         />
       ) : null}
       {sceneState.mode === "bar" ? (
@@ -1162,6 +1190,7 @@ export default function ChatExperience({
           onAffinityDelta={adjustAffinityFromCafeDelta}
           onFinishedBarDate={finishBarDateAndReturnLine}
           onInterruptBarDate={interruptBarVenueWithoutProgress}
+          onBeforeLeave={() => setSceneDim(true)}
         />
       ) : null}
     </main>

@@ -48,6 +48,8 @@ export type BarVenuePanelProps = {
   onAffinityDelta: (delta: number) => void;
   onFinishedBarDate: () => void;
   onInterruptBarDate: () => void;
+  /** `setLeaving(true)` と同タイミングで呼ばれる（親側の暗転用） */
+  onBeforeLeave?: () => void;
 };
 
 export function BarVenuePanel({
@@ -65,6 +67,7 @@ export function BarVenuePanel({
   onAffinityDelta,
   onFinishedBarDate,
   onInterruptBarDate,
+  onBeforeLeave,
 }: BarVenuePanelProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [sending, setSending] = useState(false);
@@ -180,12 +183,13 @@ export function BarVenuePanel({
 
   const depart = useCallback(() => {
     if (leaving) return;
+    onBeforeLeave?.();
     setLeaving(true);
     setError(null);
     window.setTimeout(() => {
       onFinishedBarDate();
     }, 400);
-  }, [leaving, onFinishedBarDate]);
+  }, [leaving, onBeforeLeave, onFinishedBarDate]);
 
   departRef.current = depart;
 
@@ -208,12 +212,13 @@ export function BarVenuePanel({
     ) {
       return;
     }
+    onBeforeLeave?.();
     setLeaving(true);
     setError(null);
     window.setTimeout(() => {
       onInterruptBarDate();
     }, 400);
-  }, [leaving, entranceDone, userSays, onInterruptBarDate]);
+  }, [leaving, entranceDone, userSays, onBeforeLeave, onInterruptBarDate]);
 
   const submitBar = useCallback(
     async (text: string) => {
