@@ -82,6 +82,22 @@ export type CharacterConfig = {
   barDateWithCharacterBackgroundSrc?: string;
   /** バー入室前の場所テロップ／未設定時は共通デフォルト */
   barDateLocationTelop?: string;
+  /**
+   * バーで「言葉が落ち着いた一拍」などに差し込むヒーロー画像（東京タワー夜景・横顔など）。
+   * `barDateSilenceHeroTurnMin`〜`TurnMax` の `turnsInScene` の間だけ最背面レイヤーの上に表示する。
+   */
+  barDateSilenceHeroSrc?: string;
+  /** ヒーロー画像を重ねる区間開始（既定: ５ターン目前後の一拍＝完了ターン **4** から表示） */
+  barDateSilenceHeroTurnMin?: number;
+  /** ヒーロー画像を重ねる区間終了（既定: **5** まで／５往復終了まで） */
+  barDateSilenceHeroTurnMax?: number;
+  /**
+   * 「ユーザー送信時点で `turnsInScene === この数`」の往復について、AI の inner を捨てて固定文言で上書きする（API は表面返答のみ活かす）。
+   * 既定 **4**（５ターン目のユーザー発話に対するアシスタント返信ぶん）。
+   */
+  barDateSilenceInnerOnTurnSubmit?: number;
+  /** `barDateSilenceInnerOnTurnSubmit` に合致した返信にだけ差し込む固定の内心（「内心を見る」で表示） */
+  barDateSilenceInnerLine?: string;
   /** バーを通常完了して LINE に戻したときの好感度加算（未指定時は 12） */
   barDateAffinityBonusOnLeave?: number;
   /** お茶誘いを承諾させるための、一時的な system prompt 上書き */
@@ -152,7 +168,7 @@ export type Message = {
   /** このメッセージの下にプロポーズ応答ボタンを付ける */
   proposalChoices?: boolean;
   /** アプリ自動挿入メッセージの識別（重複防止・UI での区別に使用可） */
-  autoKind?: "intimacy_secret";
+  autoKind?: "intimacy_secret" | "bar_silence_inner";
 };
 
 export type ChatResponseBody = {

@@ -7,6 +7,7 @@ import { MessageInput } from "@/components/MessageInput";
 import { messageContentForGemini } from "@/lib/stamps";
 import { assistantTypingDelayMs, sleepMs } from "@/lib/replyLatency";
 import { interpolateUserName } from "@/lib/promptInterpolate";
+import { useTeaDateCafeAmbient } from "@/hooks/useTeaDateCafeAmbient";
 import type { Character, ChatResponseBody, Message } from "@/types";
 
 const DEFAULT_TEA_DATE_CAFE_INTRO =
@@ -89,6 +90,8 @@ export function TeaDateCafePanel({
     sending ||
     leaving ||
     turnsInScene >= maxTurns;
+
+  useTeaDateCafeAmbient(entranceDone && !leaving);
 
   useEffect(() => {
     if (!hasPairCafe) return;
@@ -206,7 +209,6 @@ export function TeaDateCafePanel({
       try {
         const body = {
           messages: historyForApi,
-          character,
           affinity,
           userName,
           teaDateCafe: true,

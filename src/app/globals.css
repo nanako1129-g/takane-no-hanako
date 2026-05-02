@@ -18,6 +18,36 @@ body {
     sans-serif;
 }
 
+/* バー「ひとときの本心」: 0.5s ディレイのあとふわりと出す */
+@keyframes silence-inner-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+    filter: blur(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+.silence-inner-reveal {
+  opacity: 0;
+  animation: silence-inner-reveal 0.85s cubic-bezier(0.22, 1, 0.36, 1) 0.5s
+    forwards;
+  will-change: opacity, transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .silence-inner-reveal {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+    filter: none !important;
+  }
+}
+
 @layer utilities {
   .text-balance {
     text-wrap: balance;

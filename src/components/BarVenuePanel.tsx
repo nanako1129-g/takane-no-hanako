@@ -7,6 +7,7 @@ import { MessageInput } from "@/components/MessageInput";
 import { messageContentForGemini } from "@/lib/stamps";
 import { assistantTypingDelayMs, sleepMs } from "@/lib/replyLatency";
 import { interpolateUserName } from "@/lib/promptInterpolate";
+import { useBarPolarisAmbient } from "@/hooks/useBarPolarisAmbient";
 import type { Character, ChatResponseBody, Message } from "@/types";
 
 /** 共通テロップ（`CharacterConfig.barDateLocationTelop` で上書き可） */
@@ -77,6 +78,12 @@ export function BarVenuePanel({
   const telopLine =
     character.barDateLocationTelop?.trim() || DEFAULT_BAR_LOCATION_TELOP;
 
+  const silenceHeroSrc = character.barDateSilenceHeroSrc?.trim();
+  const silenceHeroMin = character.barDateSilenceHeroTurnMin ?? 4;
+  const silenceHeroMax = character.barDateSilenceHeroTurnMax ?? 5;
+  const silenceInnerOnTurn = character.barDateSilenceInnerOnTurnSubmit ?? 4;
+  const silenceInnerLine = character.barDateSilenceInnerLine?.trim();
+
   const [entranceDone, setEntranceDone] = useState(false);
   const [whiteVeilGone, setWhiteVeilGone] = useState(false);
   const [telopVisible, setTelopVisible] = useState(false);
@@ -90,6 +97,18 @@ export function BarVenuePanel({
     !leaving;
   const inputBlocked =
     !entranceDone || sending || leaving || turnsInScene >= maxTurns;
+
+  /** ５ターン目前後の「一息」：東京タワー横顔ヒーローを重ねる */
+  const showSilenceHero =
+    Boolean(silenceHeroSrc) &&
+    entranceDone &&
+    !leaving &&
+    turnsInScene >= silenceHeroMin &&
+    turnsInScene <= silenceHeroMax;
+
+  const portraitStripHidden = hidePortraitStrip || showSilenceHero;
+
+  useBarPolarisAmbient(entranceDone && !leaving);
 
   useEffect(() => {
     let cancelled = false;
@@ -216,7 +235,6 @@ export function BarVenuePanel({
       try {
         const body = {
           messages: historyForApi,
-          character,
           affinity,
           userName,
           teaDateBar: true,
@@ -241,6 +259,9 @@ export function BarVenuePanel({
 
         const data = (await res.json()) as ChatResponseBody;
 
+        const useSilenceInner =
+          Boolean(silenceInnerLine) && turnsInScene === silenceInnerOnTurn;
+
         const wait = assistantTypingDelayMs(character, affinity);
         if (wait > 0) {
           await sleepMs(wait);
@@ -250,9 +271,10 @@ export function BarVenuePanel({
           id: newMsgId(),
           role: "assistant",
           content: data.reply,
-          inner: data.inner || undefined,
+          inner: useSilenceInner ? silenceInnerLine : data.inner || undefined,
           affinityChange: data.affinityChange ?? 0,
           createdAt: Date.now(),
+          autoKind: useSilenceInner ? "bar_silence_inner" : undefined,
         };
 
         setMessages((prev) => [...prev, assistantMsg]);
@@ -288,6 +310,8 @@ export function BarVenuePanel({
       onAffinityDelta,
       onVenueTurnCompleted,
       turnsInScene,
+      silenceInnerLine,
+      silenceInnerOnTurn,
       userName,
     ]
   );
@@ -350,6 +374,21 @@ export function BarVenuePanel({
           />
         </div>
       ) : null}
+      {silenceHeroSrc ? (
+        <div
+          className="pointer-events-none absolute inset-0 -z-[7] transition-opacity duration-[1100ms] ease-out"
+          style={{ opacity: showSilenceHero ? 1 : 0 }}
+          aria-hidden
+        >
+          <Image
+            src={silenceHeroSrc}
+            alt=""
+            fill
+            sizes="100vw"
+            className="object-cover object-[center_40%]"
+          />
+        </div>
+      ) : null}
       <div className="absolute inset-0 -z-[5] bg-[radial-gradient(ellipse_at_top,_rgba(251,113,133,0.12),_transparent_55%)]" />
       <div className="absolute inset-0 -z-[5] bg-gradient-to-t from-black/50 via-transparent to-indigo-500/15" />
 
@@ -393,7 +432,7 @@ export function BarVenuePanel({
           entranceDone ? "opacity-100" : "opacity-0"
         }`}
       >
-        {portraitSrc && !hidePortraitStrip ? (
+        {portraitSrc && !portraitStripHidden ? (
           <div className="mx-auto mb-4 w-32 overflow-hidden rounded-2xl shadow-lg ring-2 ring-rose-200/35">
             <div className="relative aspect-[3/4] w-full bg-gradient-to-br from-white/10 to-transparent">
               <Image
@@ -463,6 +502,22 @@ export function BarVenuePanel({
             今夜はゆっくり話せてよかった。また連絡するね…（自動で退席）
           </p>
         ) : null}
+
+        {showSilenceHero && silenceInnerLine && !sending && !leaving
+          ? turnsInScene <= silenceHeroMin ? (
+              <p className="rounded-xl bg-black/35 px-3 py-2 text-center text-[10px] font-medium leading-relaxed text-rose-50/95 drop-shadow md:text-[11px]">
+                会話がゆっくりと沈んでいく、心地よい一拍。窓の外は東京タワー、視線だけが横へ…。
+              </p>
+            ) : turnsInScene === silenceHeroMin + 1 &&
+              messages.some(
+                (m) =>
+                  m.role === "assistant" && m.autoKind === "bar_silence_inner"
+              ) ? (
+              <p className="rounded-xl bg-black/35 px-3 py-2 text-center text-[10px] font-medium leading-relaxed text-rose-50/95 drop-shadow md:text-[11px]">
+                「💭内心を見る」で、彼がどう感じていたか……覗けるかもしれない。
+              </p>
+            ) : null
+          : null}
 
         <MessageInput
           onSubmit={(t) => void submitBar(t)}

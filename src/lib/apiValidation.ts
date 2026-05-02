@@ -67,15 +67,6 @@ export function sanitizePlayerDisplayName(value: unknown): string | null {
   return stripped.length ? stripped : null;
 }
 
-/** 表面モデル用 system 追記（空・不正時は null） */
-export function sanitizeSystemPromptOverride(value: unknown): string | null {
-  if (typeof value !== "string") return null;
-  const s = stripNullBytes(value)
-    .trim()
-    .slice(0, LIMITS.MAX_SYSTEM_PROMPT_APPEND);
-  return s.length ? s : null;
-}
-
 export function sanitizeUserMessage(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const stripped = stripNullBytes(value.trim()).slice(

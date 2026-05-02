@@ -46,6 +46,8 @@ import {
   stamps as stampDefinitions,
 } from "@/lib/stamps";
 import { useAffinity } from "@/hooks/useAffinity";
+import { useLineChatAmbient } from "@/hooks/useLineChatAmbient";
+import { useProposalMomentAmbient } from "@/hooks/useProposalAmbient";
 import { interpolateUserName } from "@/lib/promptInterpolate";
 import type {
   AffinityPulse,
@@ -261,6 +263,11 @@ export default function ChatExperience({
 
   const proposalPending = proposalChoiceMsgId !== null;
 
+  const lineAmbientActive = sceneState.mode === "line" && !proposalPending;
+
+  useLineChatAmbient(lineAmbientActive);
+  useProposalMomentAmbient(proposalPending);
+
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
@@ -378,7 +385,6 @@ export default function ChatExperience({
       userMsg: Message,
       opts?: {
         inviteAcceptance?: DateInviteType;
-        systemPromptOverride?: string;
       }
     ) => {
       setError(null);
@@ -386,7 +392,6 @@ export default function ChatExperience({
       const t = proposalThreshold;
       const proposeText = proposalText.trim() ? proposalText : undefined;
       const inviteAcceptance = opts?.inviteAcceptance;
-      const systemPromptOverride = opts?.systemPromptOverride?.trim();
 
       const proposeGate =
         typeof t === "number" &&
@@ -428,12 +433,8 @@ export default function ChatExperience({
         const teaDateBar = sceneState.mode === "bar";
         const body = {
           messages: historyForApi,
-          character,
           affinity,
           userName: userProfile?.name ?? "",
-          ...(systemPromptOverride
-            ? { systemPromptOverride }
-            : {}),
           teaDateCafe,
           teaDateBar,
           turnsInScene: sceneState.turnsInScene,
@@ -564,7 +565,6 @@ export default function ChatExperience({
       text: string,
       opts?: {
         inviteAcceptance?: DateInviteType;
-        systemPromptOverride?: string;
       }
     ) => {
       const trimmed = text.trim();
@@ -647,31 +647,17 @@ export default function ChatExperience({
           : character.drinkInviteUserMessage?.trim() ||
             DEFAULT_DRINK_INVITE_USER_MESSAGE;
 
-      const systemPromptOverride =
-        type === "tea"
-          ? character.teaAcceptanceSystemPrompt?.trim()
-          : (
-              character.barInviteAcceptanceSystemPrompt?.trim() ||
-              character.drinkAcceptanceSystemPrompt?.trim()
-            );
-
       setPendingInviteAcceptance(type);
       try {
         await sendMessage(userMessage, {
           inviteAcceptance: type,
-          ...(systemPromptOverride
-            ? { systemPromptOverride }
-            : {}),
         });
       } finally {
         setPendingInviteAcceptance(null);
       }
     },
     [
-      character.barInviteAcceptanceSystemPrompt,
-      character.drinkAcceptanceSystemPrompt,
       character.drinkInviteUserMessage,
-      character.teaAcceptanceSystemPrompt,
       character.teaInviteUserMessage,
       sendMessage,
     ]

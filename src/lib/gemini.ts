@@ -1,19 +1,23 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-const apiKey = process.env.GEMINI_API_KEY;
-
-if (!apiKey) {
-  console.warn(
-    "[gemini] GEMINI_API_KEY が未設定です。.env.local を確認してください。"
-  );
-}
-
-export const genAI = new GoogleGenerativeAI(apiKey ?? "");
-
 export const MODEL_NAME = "gemini-flash-lite-latest";
 
+let cachedClient: GoogleGenerativeAI | null = null;
+
+/** 無効キーで SDK をモジュールロード時に初期化しない（API Routes は事前にキー有無を検査すること） */
+function getGenAI(): GoogleGenerativeAI {
+  const apiKey = process.env.GEMINI_API_KEY?.trim();
+  if (!apiKey) {
+    throw new Error(
+      "[gemini] GEMINI_API_KEY が未設定です。.env.local を確認してください。"
+    );
+  }
+  cachedClient ??= new GoogleGenerativeAI(apiKey);
+  return cachedClient;
+}
+
 export function getModel(systemInstruction?: string) {
-  return genAI.getGenerativeModel({
+  return getGenAI().getGenerativeModel({
     model: MODEL_NAME,
     systemInstruction,
   });

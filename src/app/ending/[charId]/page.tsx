@@ -6,6 +6,7 @@ import { notFound, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { getCharacter } from "@/characters";
 import { clearCachedAnalysis } from "@/lib/analysisCache";
+import { useProposalEndingAmbient } from "@/hooks/useProposalAmbient";
 import type { Message } from "@/types";
 
 const MESSAGES_PREFIX = "messages_";
@@ -67,6 +68,8 @@ export default function EndingPage({
     setUserTurns(s.userTurns);
     setStatsReady(true);
   }, [character.id]);
+
+  useProposalEndingAmbient(statsReady);
 
   const handleReplay = useCallback(() => {
     if (typeof window === "undefined") return;

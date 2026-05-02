@@ -1,5 +1,9 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import {
+  BgmFloatingToggle,
+  BgmPreferenceProvider,
+} from "@/components/BgmPreferenceProvider";
 import { PlayerNameProvider } from "@/components/PlayerNameProvider";
 
 export const metadata: Metadata = {
@@ -23,7 +27,12 @@ export default function RootLayout({
   return (
     <html lang="ja">
       <body className="min-h-dvh antialiased">
-        <PlayerNameProvider>{children}</PlayerNameProvider>
+        <PlayerNameProvider>
+          <BgmPreferenceProvider>
+            <BgmFloatingToggle />
+            {children}
+          </BgmPreferenceProvider>
+        </PlayerNameProvider>
       </body>
     </html>
   );
