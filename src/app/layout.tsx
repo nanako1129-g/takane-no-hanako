@@ -1,9 +1,9 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import {
-  BgmFloatingToggle,
   BgmPreferenceProvider,
 } from "@/components/BgmPreferenceProvider";
+import { ConditionalRootBgm } from "@/components/ConditionalRootBgm";
 import { PlayerNameProvider } from "@/components/PlayerNameProvider";
 
 export const metadata: Metadata = {
@@ -29,7 +29,7 @@ export default function RootLayout({
       <body className="min-h-dvh antialiased">
         <PlayerNameProvider>
           <BgmPreferenceProvider>
-            <BgmFloatingToggle />
+            <ConditionalRootBgm />
             {children}
           </BgmPreferenceProvider>
         </PlayerNameProvider>
