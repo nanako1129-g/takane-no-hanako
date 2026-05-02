@@ -135,7 +135,11 @@ export function ChatBubble({
             <button
               type="button"
               onClick={() => setOpen((o) => !o)}
-              className="mt-1.5 inline-flex max-w-full items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-500 shadow-sm transition hover:border-rose-200 hover:text-rose-500"
+              className={`mt-1.5 inline-flex max-w-full items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium shadow-sm transition hover:border-rose-200 hover:text-rose-500 ${
+                message.autoKind === "bar_silence_inner"
+                  ? "border-rose-300/80 bg-rose-50/90 text-rose-900"
+                  : "border-slate-200 bg-white text-slate-500"
+              }`}
             >
               <span aria-hidden>💭</span>
               <span>{open ? "内心を隠す" : "内心を見る"}</span>
@@ -146,6 +150,11 @@ export function ChatBubble({
             <InnerVoiceBubble
               inner={message.inner!}
               affinityChange={message.affinityChange}
+              variant={
+                message.autoKind === "bar_silence_inner"
+                  ? "silenceReveal"
+                  : "default"
+              }
             />
           )}
         </div>

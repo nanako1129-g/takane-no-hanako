@@ -6,7 +6,6 @@ import {
   sanitizeConversationMessages,
   sanitizeInviteType,
   sanitizeModelReply,
-  sanitizeSystemPromptOverride,
   sanitizeTeaDateCafeFlag,
   sanitizeTeaDateBarFlag,
   sanitizeTeaDateCafeMaxTurns,
@@ -17,9 +16,9 @@ import {
 import { interpolateCafeSceneSystemPrompt } from "@/lib/cafeScenePrompt";
 import { extractJson, getModel, toGeminiHistory } from "@/lib/gemini";
 import {
-  buildInnerPrompt,
-  buildInnerUserMessage,
-  buildSurfacePrompt,
+  buildInnerRulesForUnified,
+  buildSurfacePromptForUnified,
+  buildUnifiedChatJsonContract,
 } from "@/lib/prompts";
 import { buildAddressingGuidance, interpolateUserName } from "@/lib/promptInterpolate";
 import { sanitizeUserName } from "@/lib/userProfile";
@@ -80,7 +79,6 @@ export async function POST(req: Request) {
       : null;
   const teaDateCafeTurns = sanitizeTeaDateCafeTurnsInScene(b.turnsInScene);
   const teaDateCafeMaxTurns = sanitizeTeaDateCafeMaxTurns(b.maxTurns);
-  const systemPromptOverride = sanitizeSystemPromptOverride(b.systemPromptOverride);
   const rawUserName =
     typeof b.userName === "string"
       ? b.userName
@@ -145,19 +143,14 @@ export async function POST(req: Request) {
     : "";
 
   const addressingGuidance = buildAddressingGuidance(userName, affinity);
-  const surfacePromptInterpolated = interpolateUserName(
-    buildSurfacePrompt(character),
+  const surfaceUnifiedInterpolated = interpolateUserName(
+    buildSurfacePromptForUnified(character),
     userName
   );
-  const innerPromptInterpolated = interpolateUserName(
-    buildInnerPrompt(character),
+  const innerRulesInterpolated = interpolateUserName(
+    buildInnerRulesForUnified(character),
     userName
   );
-
-  const systemPromptInterpolated =
-    systemPromptOverride && systemPromptOverride.trim()
-      ? interpolateUserName(systemPromptOverride.trim(), userName)
-      : "";
 
   const venuePromptInterpolated =
     teaDateVenueMode && venueScenarioAppend
@@ -165,95 +158,48 @@ export async function POST(req: Request) {
       : "";
 
   const inviteInterpolatedOnly =
-    !teaDateVenueMode &&
-    !(systemPromptOverride && systemPromptOverride.trim()) &&
-    inviteFallback.trim()
+    !teaDateVenueMode && inviteFallback.trim()
       ? interpolateUserName(inviteFallback.trim(), userName)
       : "";
 
-  const surfaceSystem = [
+  const unifiedSystem = [
     addressingGuidance,
-    surfacePromptInterpolated,
-    systemPromptInterpolated,
+    surfaceUnifiedInterpolated,
     venuePromptInterpolated,
     inviteInterpolatedOnly,
+    innerRulesInterpolated,
+    buildUnifiedChatJsonContract(),
+    `【参照】このターン直前のユーザー好感度は ${affinity} / 100 です。affinityChange はこの発言への反応としての増減のみ。`,
   ]
     .filter(Boolean)
     .join("\n\n");
 
-  const innerSystem = [addressingGuidance, innerPromptInterpolated]
-    .filter(Boolean)
-    .join("\n\n");
+  const unifiedModel = getModel(unifiedSystem);
 
-  const surfaceModel = getModel(surfaceSystem);
-  const innerModel = getModel(innerSystem);
+  let reply = "";
+  let inner = "";
+  let affinityChange = 0;
 
-  const surfacePromise = (async () => {
-    const chat = surfaceModel.startChat({
+  try {
+    const chat = unifiedModel.startChat({
       history: toGeminiHistory(messages),
       generationConfig: {
-        temperature: 0.85,
-        maxOutputTokens: 256,
-      },
-    });
-    const result = await chat.sendMessage(userMessage);
-    return sanitizeModelReply(result.response.text().trim());
-  })();
-
-  const innerPromise = (async () => {
-    const result = await innerModel.generateContent({
-      contents: [
-        {
-          role: "user",
-          parts: [
-            {
-              text: buildInnerUserMessage(
-                userMessage,
-                affinity,
-                userName
-              ),
-            },
-          ],
-        },
-      ],
-      generationConfig: {
-        temperature: 0.7,
-        maxOutputTokens: 200,
+        temperature: 0.84,
+        maxOutputTokens: 640,
         responseMimeType: "application/json",
       },
     });
-    return result.response.text();
-  })();
-
-  const [surfaceSettled, innerSettled] = await Promise.allSettled([
-    surfacePromise,
-    innerPromise,
-  ]);
-
-  let reply = "";
-  if (surfaceSettled.status === "fulfilled") {
-    reply = surfaceSettled.value;
-  } else {
-    const reason = surfaceSettled.reason;
-    console.error(
-      "[chat] surface failed:",
-      reason instanceof Error ? `${reason.name}: ${reason.message}` : reason
-    );
-    if (reason instanceof Error && reason.stack) {
-      console.error(reason.stack);
-    }
-    reply =
-      "（少し考えていますね……。すみません、もう一度伺ってもよいですか？）";
-  }
-
-  let inner = "";
-  let affinityChange = 0;
-  if (innerSettled.status === "fulfilled") {
+    const result = await chat.sendMessage(userMessage);
+    const raw = result.response.text().trim();
     try {
-      const json = JSON.parse(extractJson(innerSettled.value)) as {
+      const json = JSON.parse(extractJson(raw)) as {
+        reply?: unknown;
         inner?: unknown;
         affinityChange?: unknown;
       };
+      if (typeof json.reply === "string" && json.reply.trim()) {
+        reply = sanitizeModelReply(json.reply.trim());
+      }
       if (typeof json.inner === "string") {
         inner = sanitizeModelReply(json.inner).slice(0, 120);
       }
@@ -267,16 +213,22 @@ export async function POST(req: Request) {
         );
       }
     } catch {
-      inner = "";
-      affinityChange = 0;
-      console.error("[chat] inner JSON parse failed");
+      console.error("[chat] unified JSON parse failed:", raw.slice(0, 200));
     }
-  } else {
-    const reason = innerSettled.reason;
+    if (!reply) {
+      reply =
+        "（少し考えていますね……。すみません、もう一度伺ってもよいですか？）";
+    }
+  } catch (err) {
     console.error(
-      "[chat] inner failed:",
-      reason instanceof Error ? `${reason.name}: ${reason.message}` : reason
+      "[chat] unified model failed:",
+      err instanceof Error ? `${err.name}: ${err.message}` : err
     );
+    if (err instanceof Error && err.stack) console.error(err.stack);
+    reply =
+      "（少し考えていますね……。すみません、もう一度伺ってもよいですか？）";
+    inner = "";
+    affinityChange = 0;
   }
 
   const payload: ChatResponseBody = {

@@ -229,6 +229,12 @@ export const hanasaki: CharacterConfig = {
   teaDateEmptyBackgroundSrc: "/characters/hanasaki/cafe_empty.png",
   teaDateWithCharacterBackgroundSrc: "/characters/hanasaki/cafe_with_him.png",
   barDateWithCharacterBackgroundSrc: "/characters/hanasaki/bar_with_him.png",
+  barDateSilenceHeroSrc: "/characters/hanasaki/bar_silence_profile.png",
+  barDateSilenceHeroTurnMin: 4,
+  barDateSilenceHeroTurnMax: 5,
+  barDateSilenceInnerOnTurnSubmit: 4,
+  barDateSilenceInnerLine:
+    "…少し、緊張してるな。でも、この時間がずっと続けばいいのに",
 
   images: {
     baseline: "/characters/hanasaki/baseline.png",
