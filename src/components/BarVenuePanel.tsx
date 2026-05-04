@@ -441,7 +441,10 @@ export function BarVenuePanel({
           <BgmToggleButton />
           <button
             type="button"
-            onClick={() => interrupt()}
+            onClick={() => {
+              if (bgmEnabled) { try { const se = new Audio("/audio/ui-click.mp3"); se.volume = 0.5; void se.play(); } catch { /* ignore */ } }
+              interrupt();
+            }}
             disabled={leaving || !entranceDone}
             className="shrink-0 rounded-full border border-white/20 bg-white/10 px-2 py-1 text-[10px] font-medium text-white backdrop-blur transition hover:bg-white/20 disabled:opacity-40 sm:px-3 sm:text-[11px]"
           >
@@ -550,7 +553,10 @@ export function BarVenuePanel({
         {showLeavePrompt ? (
           <button
             type="button"
-            onClick={() => depart()}
+            onClick={() => {
+              if (bgmEnabled) { try { const se = new Audio("/audio/ui-click.mp3"); se.volume = 0.5; void se.play(); } catch { /* ignore */ } }
+              depart();
+            }}
             disabled={leaving}
             className="w-full rounded-2xl border border-rose-300/60 bg-gradient-to-r from-slate-800/95 to-indigo-900/90 px-4 py-3 text-sm font-semibold text-rose-50 shadow-sm transition hover:border-rose-200/70 disabled:opacity-50"
           >

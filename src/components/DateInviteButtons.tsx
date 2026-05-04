@@ -5,6 +5,7 @@ import {
   canShowDrinkButton,
   canShowTeaButton,
 } from "@/lib/dateProgress";
+import { useBgmGlobalEnabled } from "@/components/BgmPreferenceProvider";
 
 type Props = {
   progress: DateProgress;
@@ -15,6 +16,16 @@ type Props = {
 export function DateInviteButtons({ progress, onInvite, disabled }: Props) {
   const showTea = canShowTeaButton(progress);
   const showDrink = canShowDrinkButton(progress);
+  const bgmEnabled = useBgmGlobalEnabled();
+
+  const playClick = () => {
+    if (!bgmEnabled) return;
+    try {
+      const se = new Audio("/audio/ui-click.mp3");
+      se.volume = 0.5;
+      void se.play();
+    } catch { /* ignore */ }
+  };
 
   if (!showTea && !showDrink) return null;
 
@@ -23,7 +34,7 @@ export function DateInviteButtons({ progress, onInvite, disabled }: Props) {
       {showTea && (
         <button
           type="button"
-          onClick={() => onInvite("tea")}
+          onClick={() => { playClick(); onInvite("tea"); }}
           disabled={disabled}
           className="flex items-center gap-1 rounded-full border border-rose-300 bg-white px-4 py-2 text-sm font-medium text-rose-600 transition hover:bg-rose-100 disabled:opacity-50"
         >
@@ -38,7 +49,7 @@ export function DateInviteButtons({ progress, onInvite, disabled }: Props) {
       {showDrink && (
         <button
           type="button"
-          onClick={() => onInvite("drink")}
+          onClick={() => { playClick(); onInvite("drink"); }}
           disabled={disabled}
           className="flex items-center gap-1 rounded-full border border-rose-400 bg-white px-4 py-2 text-sm font-medium text-rose-700 transition hover:bg-rose-100 disabled:opacity-50"
         >

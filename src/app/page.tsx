@@ -22,7 +22,16 @@ export default function HomePage() {
     } catch { /* ignore */ }
   }, []);
 
+  const playClick = () => {
+    try {
+      const se = new Audio("/audio/ui-click.mp3");
+      se.volume = 0.5;
+      void se.play();
+    } catch { /* ignore */ }
+  };
+
   const handleSelectCharacter = (charId: string) => {
+    playClick();
     if (!userProfile) {
       setPendingCharId(charId);
       setIsNameModalOpen(true);

@@ -1283,7 +1283,10 @@ export default function ChatExperience({
               {showResetButton ? (
                 <button
                   type="button"
-                  onClick={handleReset}
+                  onClick={() => {
+                    if (bgmEnabled) { try { const se = new Audio("/audio/ui-click.mp3"); se.volume = 0.5; void se.play(); } catch { /* ignore */ } }
+                    handleReset();
+                  }}
                   className="shrink-0 rounded-full border border-slate-200 px-2 py-1 text-[10px] text-slate-600 transition hover:border-rose-200 hover:text-rose-600 sm:px-2.5 sm:text-[11px]"
                 >
                   リセット
@@ -1360,7 +1363,10 @@ export default function ChatExperience({
           {awaitingProposalDate ? (
             <button
               type="button"
-              onClick={enterProposalDateScene}
+              onClick={() => {
+                if (bgmEnabled) { try { const se = new Audio("/audio/ui-click.mp3"); se.volume = 0.5; void se.play(); } catch { /* ignore */ } }
+                enterProposalDateScene();
+              }}
               disabled={isLoading || venueUiOpen}
               className="flex w-full items-center justify-center rounded-xl border-2 border-rose-300/80 bg-gradient-to-b from-rose-50/95 to-white px-4 py-3.5 text-sm font-semibold tracking-wide text-rose-900 shadow-[0_1px_0_rgba(0,0,0,0.06)] transition hover:border-rose-400 hover:from-rose-50 hover:to-rose-50/80 disabled:opacity-50"
             >
@@ -1370,7 +1376,10 @@ export default function ChatExperience({
           {awaitingTeaOuting ? (
             <button
               type="button"
-              onClick={enterTeaDateCafeScene}
+              onClick={() => {
+                if (bgmEnabled) { try { const se = new Audio("/audio/ui-click.mp3"); se.volume = 0.5; void se.play(); } catch { /* ignore */ } }
+                enterTeaDateCafeScene();
+              }}
               disabled={isLoading || proposalPending || venueUiOpen}
               className="flex w-full items-center justify-center rounded-xl border-2 border-amber-200/90 bg-gradient-to-b from-amber-50/95 to-white px-4 py-3.5 text-sm font-semibold tracking-wide text-amber-950 shadow-[0_1px_0_rgba(0,0,0,0.06)] transition hover:border-amber-300 hover:from-amber-50 hover:to-amber-50/80 disabled:opacity-50"
             >
@@ -1380,7 +1389,10 @@ export default function ChatExperience({
           {awaitingDrinkOuting ? (
             <button
               type="button"
-              onClick={enterBarVenueScene}
+              onClick={() => {
+                if (bgmEnabled) { try { const se = new Audio("/audio/ui-click.mp3"); se.volume = 0.5; void se.play(); } catch { /* ignore */ } }
+                enterBarVenueScene();
+              }}
               disabled={isLoading || proposalPending || venueUiOpen}
               className="flex w-full items-center justify-center rounded-xl border-2 border-indigo-400/80 bg-gradient-to-b from-indigo-950/95 via-slate-900 to-indigo-950 px-4 py-3.5 text-sm font-semibold tracking-wide text-rose-50 shadow-[0_1px_0_rgba(0,0,0,0.2)] transition hover:border-rose-300/70 disabled:opacity-50"
             >
@@ -1429,7 +1441,10 @@ export default function ChatExperience({
             </p>
             <button
               type="button"
-              onClick={goAnalyze}
+              onClick={() => {
+                if (bgmEnabled) { try { const se = new Audio("/audio/ui-click.mp3"); se.volume = 0.5; void se.play(); } catch { /* ignore */ } }
+                goAnalyze();
+              }}
               disabled={userMessageCount < 1}
               className="rounded-full bg-slate-800 px-3 py-1.5 text-[11px] font-semibold text-white shadow-sm transition hover:bg-slate-900 disabled:cursor-not-allowed disabled:bg-slate-300"
             >

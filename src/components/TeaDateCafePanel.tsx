@@ -366,7 +366,10 @@ export function TeaDateCafePanel({
           <BgmToggleButton />
           <button
             type="button"
-            onClick={() => interruptCafe()}
+            onClick={() => {
+              if (bgmEnabled) { try { const se = new Audio("/audio/ui-click.mp3"); se.volume = 0.5; void se.play(); } catch { /* ignore */ } }
+              interruptCafe();
+            }}
             disabled={leaving || !entranceDone}
             className="shrink-0 rounded-full border border-slate-400/40 bg-white/60 px-2 py-1 text-[10px] font-medium text-slate-700 backdrop-blur transition hover:bg-white/80 disabled:opacity-40 sm:px-3 sm:text-[11px]"
           >
@@ -489,7 +492,10 @@ export function TeaDateCafePanel({
         {showLeavePrompt ? (
           <button
             type="button"
-            onClick={() => departCafe()}
+            onClick={() => {
+              if (bgmEnabled) { try { const se = new Audio("/audio/ui-click.mp3"); se.volume = 0.5; void se.play(); } catch { /* ignore */ } }
+              departCafe();
+            }}
             disabled={leaving}
             className="w-full rounded-2xl border border-amber-900/25 bg-gradient-to-r from-amber-100 to-rose-50 px-4 py-3 text-sm font-semibold text-amber-950 shadow-sm transition hover:from-amber-50 hover:to-rose-100 disabled:opacity-50"
           >

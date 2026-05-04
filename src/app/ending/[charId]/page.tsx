@@ -8,6 +8,7 @@ import { getCharacter, pickCharacterPortrait } from "@/characters";
 import { clearCachedAnalysis } from "@/lib/analysisCache";
 import { useProposalEndingAmbient } from "@/hooks/useProposalAmbient";
 import { useMemoryGalleryAmbient } from "@/hooks/useMemoryGalleryAmbient";
+import { useBgmGlobalEnabled } from "@/components/BgmPreferenceProvider";
 import type { Character, Message } from "@/types";
 
 const MESSAGES_PREFIX = "messages_";
@@ -119,6 +120,16 @@ export default function EndingPage({
   const [galleryIndex, setGalleryIndex] = useState(0);
   const [pageVisible, setPageVisible] = useState(false);
   const scenePhotos = buildScenePhotos(character);
+  const bgmEnabled = useBgmGlobalEnabled();
+
+  const playMenuSe = useCallback(() => {
+    if (!bgmEnabled) return;
+    try {
+      const se = new Audio("/audio/menu-select.mp3");
+      se.volume = 0.6;
+      void se.play();
+    } catch { /* ignore */ }
+  }, [bgmEnabled]);
 
   useEffect(() => {
     const s = readFinalData(character.id);
@@ -229,7 +240,7 @@ export default function EndingPage({
         <div className="flex w-full flex-col gap-3">
           <button
             type="button"
-            onClick={handleContinue}
+            onClick={() => { playMenuSe(); handleContinue(); }}
             className="w-full rounded-full bg-rose-500 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-600"
           >
             💌 エンディングの続きから遊ぶ
@@ -240,7 +251,7 @@ export default function EndingPage({
           <div className="flex w-full flex-col gap-3 sm:flex-row sm:justify-center">
             <button
               type="button"
-              onClick={handleReplay}
+              onClick={() => { playMenuSe(); handleReplay(); }}
               className="w-full rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-rose-200 hover:bg-rose-50 sm:w-auto sm:min-w-[180px]"
             >
               🔄 最初から遊ぶ
@@ -258,7 +269,7 @@ export default function EndingPage({
           {messages.length > 0 ? (
             <button
               type="button"
-              onClick={() => setShowLogs(true)}
+              onClick={() => { playMenuSe(); setShowLogs(true); }}
               className="flex w-full items-center justify-center gap-2 rounded-full border-2 border-rose-200/70 bg-gradient-to-b from-rose-50 to-white px-5 py-3 text-sm font-semibold text-rose-700 shadow-sm transition hover:border-rose-300 hover:from-rose-100"
             >
               ❤️ 過去に話した内容を思い出す
@@ -266,7 +277,7 @@ export default function EndingPage({
           ) : null}
           <button
             type="button"
-            onClick={() => { setGalleryIndex(0); setShowGallery(true); }}
+            onClick={() => { playMenuSe(); setGalleryIndex(0); setShowGallery(true); }}
             className="flex w-full items-center justify-center gap-2 rounded-full border-2 border-amber-200/70 bg-gradient-to-b from-amber-50 to-white px-5 py-3 text-sm font-semibold text-amber-800 shadow-sm transition hover:border-amber-300 hover:from-amber-100"
           >
             🌟 思い出のシーンを振り返る

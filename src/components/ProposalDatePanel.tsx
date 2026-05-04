@@ -654,7 +654,10 @@ export function ProposalDatePanel({
           <div className="flex justify-center">
             <button
               type="button"
-              onClick={handleProposalContinue}
+              onClick={() => {
+                if (bgmEnabledRef.current) { try { const se = new Audio("/audio/ui-click.mp3"); se.volume = 0.5; void se.play(); } catch { /* ignore */ } }
+                handleProposalContinue();
+              }}
               className="rounded-full border-2 border-slate-400/60 bg-white/80 px-8 py-2.5 text-sm font-semibold text-slate-600 shadow-sm transition hover:bg-slate-100 active:scale-95"
             >
               ・・・
