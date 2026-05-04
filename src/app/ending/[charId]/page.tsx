@@ -14,6 +14,8 @@ const MESSAGES_PREFIX = "messages_";
 const AFFINITY_PREFIX = "affinity_";
 const PROPOSAL_PREFIX = "proposal_";
 const DATE_PROGRESS_PREFIX = "date_progress_";
+const POST_ENDING_PREFIX = "post_ending_";
+const AWAITING_PREFIX = "awaiting_outing_";
 
 function readFinalData(charId: string): {
   affinity: number;
@@ -73,8 +75,14 @@ function buildScenePhotos(character: Character): ScenePhoto[] {
   if (character.barDateSilenceHeroSrc) {
     photos.push({ src: character.barDateSilenceHeroSrc, label: barName, sub: "夜景と沈黙" });
   }
-  if (character.proposalDateSceneSrc) {
-    photos.push({ src: character.proposalDateSceneSrc, label: "プロポーズ", sub: "大切な夜" });
+  const proposalName = character.proposalDateLocationName ?? "プロポーズ";
+  if (character.proposalDateSceneSrcs?.length) {
+    const labels = ["夜の公園", "花咲さん登場", "ふたりで散歩", "プロポーズの瞬間", "ブレスレット", "笑顔"];
+    character.proposalDateSceneSrcs.forEach((src, i) => {
+      photos.push({ src, label: proposalName, sub: labels[i] ?? `シーン${i + 1}` });
+    });
+  } else if (character.proposalDateSceneSrc) {
+    photos.push({ src: character.proposalDateSceneSrc, label: proposalName, sub: "大切な夜" });
   }
   photos.push({ src: character.images.happy, label: character.name, sub: "笑顔" });
   photos.push({ src: character.images.cool, label: character.name, sub: "真剣な表情" });
@@ -129,11 +137,31 @@ export default function EndingPage({
       window.localStorage.removeItem(`${PROPOSAL_PREFIX}${character.id}`);
       window.localStorage.removeItem(`${DATE_PROGRESS_PREFIX}${character.id}`);
       window.localStorage.removeItem(`${MESSAGES_PREFIX}${character.id}`);
+      window.localStorage.removeItem(`${POST_ENDING_PREFIX}${character.id}`);
+      window.localStorage.removeItem(`${AWAITING_PREFIX}${character.id}`);
       clearCachedAnalysis(character.id);
     } catch {
       // ignore
     }
     router.push("/");
+  }, [character.id, router]);
+
+  /** エンディング後の続きプレイ：好感度を保持してチャットへ（上限200に拡張） */
+  const handleContinue = useCallback(() => {
+    if (typeof window === "undefined") return;
+    try {
+      // 会話ログ・日付進行・待機状態はリセット、好感度は保持
+      window.localStorage.removeItem(`${MESSAGES_PREFIX}${character.id}`);
+      window.localStorage.removeItem(`${DATE_PROGRESS_PREFIX}${character.id}`);
+      window.localStorage.removeItem(`${AWAITING_PREFIX}${character.id}`);
+      window.localStorage.removeItem(`${PROPOSAL_PREFIX}${character.id}`);
+      // 続きプレイフラグをセット
+      window.localStorage.setItem(`${POST_ENDING_PREFIX}${character.id}`, "true");
+      clearCachedAnalysis(character.id);
+    } catch {
+      // ignore
+    }
+    router.push(`/chat/${character.id}`);
   }, [character.id, router]);
 
   return (
@@ -173,20 +201,32 @@ export default function EndingPage({
           <p className="text-[13px] text-slate-500">─ {character.name} ─</p>
         </blockquote>
 
-        <div className="flex w-full flex-col gap-3 sm:flex-row sm:justify-center">
+        <div className="flex w-full flex-col gap-3">
           <button
             type="button"
-            onClick={handleReplay}
-            className="w-full rounded-full bg-rose-500 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-600 sm:w-auto sm:min-w-[180px]"
+            onClick={handleContinue}
+            className="w-full rounded-full bg-rose-500 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-600"
           >
-            もう一度遊ぶ
+            💌 エンディングの続きから遊ぶ
           </button>
-          <Link
-            href={`/analysis/${character.id}`}
-            className="w-full rounded-full border border-slate-200 bg-white px-5 py-3 text-center text-sm font-semibold text-slate-700 shadow-sm transition hover:border-rose-200 hover:bg-rose-50 sm:w-auto sm:min-w-[180px]"
-          >
-            分析を見る
-          </Link>
+          <p className="text-center text-[11px] text-slate-400">
+            好感度を引き継いで続きのチャット（上限200に拡張）
+          </p>
+          <div className="flex w-full flex-col gap-3 sm:flex-row sm:justify-center">
+            <button
+              type="button"
+              onClick={handleReplay}
+              className="w-full rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-rose-200 hover:bg-rose-50 sm:w-auto sm:min-w-[180px]"
+            >
+              🔄 最初から遊ぶ
+            </button>
+            <Link
+              href={`/analysis/${character.id}`}
+              className="w-full rounded-full border border-slate-200 bg-white px-5 py-3 text-center text-sm font-semibold text-slate-700 shadow-sm transition hover:border-rose-200 hover:bg-rose-50 sm:w-auto sm:min-w-[180px]"
+            >
+              分析を見る
+            </Link>
+          </div>
         </div>
 
         <div className="flex w-full max-w-xs flex-col gap-3">

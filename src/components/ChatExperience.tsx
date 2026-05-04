@@ -83,6 +83,7 @@ export interface ChatExperienceProps {
 const MESSAGES_PREFIX = "messages_";
 const PROPOSAL_PREFIX = "proposal_";
 const AWAITING_PREFIX = "awaiting_outing_";
+const POST_ENDING_PREFIX = "post_ending_";
 
 const DEFAULT_TEA_INVITE_USER_MESSAGE =
   "今度、お茶でも飲みに行きませんか？";
@@ -102,9 +103,9 @@ const DEFAULT_BAR_DATE_FAREWELL_LINE =
 /** バー退店〜LINE復帰で加算する好感度（`CharacterConfig.barDateAffinityBonusOnLeave` が無いとき） */
 const DEFAULT_BAR_LEAVE_AFFINITY_BONUS = 12;
 
-function clampAffinity(n: number): number {
+function clampAffinity(n: number, max = 100): number {
   if (!Number.isFinite(n)) return 0;
-  return Math.max(0, Math.min(100, Math.round(n)));
+  return Math.max(0, Math.min(max, Math.round(n)));
 }
 
 function newId() {
@@ -133,6 +134,10 @@ export default function ChatExperience({
     setAffinity,
     hydrated: affinityHydrated,
   } = useAffinity(character.id, character.initialAffinity);
+
+  /** エンディング後の続きプレイモード（好感度上限200） */
+  const [postEnding, setPostEnding] = useState(false);
+  const affinityMax = postEnding ? 200 : 100;
 
   /** シーン遷移時の暗転オーバーレイ制御 */
   const [sceneDim, setSceneDim] = useState(false);
@@ -392,6 +397,12 @@ export default function ChatExperience({
       else if (outing === "drink") setAwaitingDrinkOutingRaw(true);
       else if (outing === "proposal") setAwaitingProposalDateRaw(true);
     } catch { /* ignore */ }
+
+    // エンディング後の続きプレイモードを復元
+    try {
+      const pe = window.localStorage.getItem(`${POST_ENDING_PREFIX}${character.id}`);
+      if (pe === "true") setPostEnding(true);
+    } catch { /* ignore */ }
   }, [character.id]);
 
   useEffect(() => {
@@ -504,6 +515,7 @@ export default function ChatExperience({
         Boolean(proposeText) &&
         !proposalDelivered &&
         !awaitingProposalDate &&
+        !postEnding && // 続きプレイ時はプロポーズを再発動しない
         !messages.some((m) => m.proposalChoices) &&
         canTriggerProposal(affinity, dateProgress, character);
 
@@ -601,7 +613,7 @@ export default function ChatExperience({
           typeof data.affinityChange === "number" ? data.affinityChange : 0;
         const change = delta;
 
-        const newAffinity = clampAffinity(affinity + change);
+        const newAffinity = clampAffinity(affinity + change, affinityMax);
         const prevProgress = dateProgress;
 
         const updated = evaluateUnlocks(newAffinity, prevProgress, character);
@@ -763,10 +775,13 @@ export default function ChatExperience({
     setAwaitingProposalDate(false);
     setSceneState(lineSceneState());
 
+    setPostEnding(false);
+
     if (typeof window !== "undefined") {
       window.localStorage.removeItem(`${PROPOSAL_PREFIX}${character.id}`);
       window.localStorage.removeItem(`date_progress_${character.id}`);
       window.localStorage.removeItem(`${MESSAGES_PREFIX}${character.id}`);
+      window.localStorage.removeItem(`${POST_ENDING_PREFIX}${character.id}`);
       window.localStorage.removeItem(`affinity_${character.id}`);
       window.localStorage.removeItem(`${AWAITING_PREFIX}${character.id}`);
       clearCachedAnalysis(character.id);
@@ -777,7 +792,7 @@ export default function ChatExperience({
   /** 開発デモ用：会話せず親密度のみ変更（解放トーストやデート進行も同期） */
   const applyDemoAffinity = useCallback(
     (nextRaw: number) => {
-      const newAffinity = clampAffinity(nextRaw);
+      const newAffinity = clampAffinity(nextRaw, affinityMax);
       setAffinity((prevAff) => {
         const delta = newAffinity - prevAff;
         if (delta !== 0) {
@@ -859,7 +874,7 @@ export default function ChatExperience({
 
   const adjustAffinityFromCafeDelta = useCallback(
     (delta: number) => {
-      setAffinity((prev) => clampAffinity(prev + delta));
+      setAffinity((prev) => clampAffinity(prev + delta, affinityMax));
     },
     [setAffinity]
   );
@@ -978,7 +993,7 @@ export default function ChatExperience({
         ? Math.round(character.barDateAffinityBonusOnLeave)
         : DEFAULT_BAR_LEAVE_AFFINITY_BONUS;
     const cappedBonus = Math.max(-100, Math.min(100, bonus));
-    const nextAffinity = clampAffinity(affinityRef.current + cappedBonus);
+    const nextAffinity = clampAffinity(affinityRef.current + cappedBonus, affinityMax);
 
     setAffinity(nextAffinity);
     setAffinityPulse({ delta: cappedBonus, timestamp: Date.now() });
