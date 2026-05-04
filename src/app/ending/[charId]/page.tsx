@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { getCharacter, pickCharacterPortrait } from "@/characters";
 import { clearCachedAnalysis } from "@/lib/analysisCache";
 import { useProposalEndingAmbient } from "@/hooks/useProposalAmbient";
+import { useMemoryGalleryAmbient } from "@/hooks/useMemoryGalleryAmbient";
 import type { Character, Message } from "@/types";
 
 const MESSAGES_PREFIX = "messages_";
@@ -118,7 +119,8 @@ export default function EndingPage({
     }
   }, [showLogs]);
 
-  useProposalEndingAmbient(statsReady);
+  useProposalEndingAmbient(statsReady && !showGallery);
+  useMemoryGalleryAmbient(showGallery);
 
   const handleReplay = useCallback(() => {
     if (typeof window === "undefined") return;
