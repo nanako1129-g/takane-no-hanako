@@ -66,6 +66,26 @@ export function BgmPreferenceProvider({
     [enabled, setEnabled, toggle, hydrated]
   );
 
+  /** ボタンクリック効果音（BGM が ON の間のみ再生） */
+  useEffect(() => {
+    if (!hydrated) return;
+    let clickAudio: HTMLAudioElement | null = null;
+    const handler = (e: MouseEvent) => {
+      if (!enabled) return;
+      if (!(e.target as Element).closest("button, [role='button']")) return;
+      try {
+        if (!clickAudio) clickAudio = new Audio("/audio/click.mp3");
+        const se = clickAudio.cloneNode() as HTMLAudioElement;
+        se.volume = 0.45;
+        void se.play();
+      } catch {
+        // ignore
+      }
+    };
+    document.addEventListener("click", handler);
+    return () => document.removeEventListener("click", handler);
+  }, [enabled, hydrated]);
+
   return (
     <BgmPreferenceContext.Provider value={value}>
       {children}
