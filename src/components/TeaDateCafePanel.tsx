@@ -17,14 +17,14 @@ const DEFAULT_TEA_DATE_CAFE_INTRO =
   "ここのコーヒー、香りがいいんですよ。\n" +
   "…来てくれて、ありがとうございます。";
 
-/** 画像を最初に表示するまでのフェードイン時間（シーンオーバーレイが消えるタイミングに合わせる） */
+/** 画像を最初に表示するまでのフェードイン時間 */
 const CAFE_IMAGE_SHOW_MS = 200;
-/** 誰もいない広角写真を見せる時間（画像表示開始からの追加待ち） */
-const CAFE_SOLO_HOLD_MS = 2000;
-/** 彼が入ってくる（wide → portrait）クロスフェード時間 */
+/** 会話画面（チャット欄）を表示するまでの時間 */
+const CAFE_UI_SHOW_MS = 600;
+/** 広角→アップに切り替えるターン数 */
+const CAFE_PORTRAIT_SWITCH_TURNS = 2;
+/** 広角→アップのクロスフェード時間 */
 const CAFE_PAIR_CROSS_MS = 1000;
-/** クロスフェード後、UI 表示（挨拶文）を始めるまでの余韻 */
-const CAFE_POST_AMBIENT_MS = 350;
 
 function newMsgId(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -89,15 +89,14 @@ export function TeaDateCafePanel({
   const showSceneHero = hasPairCafe || Boolean(resolvedSingleBg);
 
   const [entranceDone, setEntranceDone] = useState(false);
-  /** 画像コンテナを表示するフラグ（すぐに opacity-100 にする） */
+  /** 画像コンテナを表示するフラグ */
   const [imageVisible, setImageVisible] = useState(false);
   /**
-   * 入場タイマーで制御する「彼が到着した」フラグ。
-   * - false: 広角写真を表示（座って待っているシーン）
-   * - true : アップ写真へクロスフェード
+   * ターン数で制御する「アップ写真へ切り替え」フラグ。
+   * 2ターン会話するまでは広角のまま。
    */
-  const [characterArrived, setCharacterArrived] = useState(false);
-  const pairLayerVisible = hasPairCafe && characterArrived;
+  const characterArrived = hasPairCafe && turnsInScene >= CAFE_PORTRAIT_SWITCH_TURNS;
+  const pairLayerVisible = characterArrived;
 
   const userSays = messages.filter((m) => m.role === "user").length;
   const showLeavePrompt =
@@ -125,15 +124,11 @@ export function TeaDateCafePanel({
       );
     };
 
-    // 0. すぐに画像を表示（opacity 0 → 1）
-    // 1. 広角写真（座って待つシーン）をじっくり見せる（CAFE_SOLO_HOLD_MS）
-    // 2. 彼が到着 → クロスフェード開始（CAFE_PAIR_CROSS_MS）
-    // 3. 余韻の後 UI 解放・挨拶文表示（CAFE_POST_AMBIENT_MS）
+    // 1. 画像をフェードイン表示
+    // 2. チャット欄・入力欄を解放（挨拶文も表示）
+    // ※ 広角→アップの切り替えはターン数で制御（CAFE_PORTRAIT_SWITCH_TURNS ターン後）
     after(CAFE_IMAGE_SHOW_MS, () => setImageVisible(true));
-    after(CAFE_IMAGE_SHOW_MS + CAFE_SOLO_HOLD_MS, () => setCharacterArrived(true));
-    after(CAFE_IMAGE_SHOW_MS + CAFE_SOLO_HOLD_MS + CAFE_PAIR_CROSS_MS + CAFE_POST_AMBIENT_MS, () =>
-      setEntranceDone(true)
-    );
+    after(CAFE_UI_SHOW_MS, () => setEntranceDone(true));
 
     return () => {
       cancelled = true;

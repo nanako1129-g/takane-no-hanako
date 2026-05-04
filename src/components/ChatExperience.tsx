@@ -817,7 +817,7 @@ export default function ChatExperience({
         return updated;
       });
     },
-    [character, setAffinity]
+    [character, setAffinity, affinityMax]
   );
 
   const handleInvite = useCallback(
@@ -876,7 +876,7 @@ export default function ChatExperience({
     (delta: number) => {
       setAffinity((prev) => clampAffinity(prev + delta, affinityMax));
     },
-    [setAffinity]
+    [setAffinity, affinityMax]
   );
 
   const completeTeaVenueTurn = useCallback(() => {
@@ -1024,7 +1024,7 @@ export default function ChatExperience({
 
     setTeaDateSessionKey((k) => k + 1);
     window.setTimeout(() => setSceneDim(false), 380);
-  }, [character, setAffinity, userProfile?.name]);
+  }, [character, setAffinity, affinityMax, userProfile?.name]);
 
   const finishTeaDateAndReturnLine = useCallback(() => {
     conversationEpochRef.current += 1;
