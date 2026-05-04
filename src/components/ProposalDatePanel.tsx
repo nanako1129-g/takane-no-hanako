@@ -142,7 +142,7 @@ export function ProposalDatePanel({
     return () => window.clearTimeout(id);
   }, []);
 
-  // entranceDone 後に1回だけ：独り言 → 3秒後に花咲さん登場
+  // entranceDone 後に1回だけ：独り言 → 3.6秒後に花咲さん登場
   useEffect(() => {
     if (!entranceDone || introOnce.current) return;
     introOnce.current = true;
@@ -156,10 +156,12 @@ export function ProposalDatePanel({
     };
     setMessages([monologueMsg]);
 
-    // 3秒後に花咲さん登場（画像切り替え＋セリフ）
+    const entranceDelayMs = 3600;
+
+    // 3.6秒後に花咲さん登場（画像切替とイントロセリフ）
     const t1 = window.setTimeout(() => {
       setSceneIdx(SCENE.arrival);
-    }, 3000);
+    }, entranceDelayMs);
 
     const t2 = window.setTimeout(() => {
       const introSource =
@@ -174,7 +176,7 @@ export function ProposalDatePanel({
           createdAt: Date.now(),
         },
       ]);
-    }, 3600);
+    }, entranceDelayMs);
 
     return () => {
       window.clearTimeout(t1);

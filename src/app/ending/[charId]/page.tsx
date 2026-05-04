@@ -283,10 +283,6 @@ export default function EndingPage({
             🌟 思い出のシーンを振り返る
           </button>
         </div>
-
-        <p className="max-w-md text-[10px] leading-relaxed text-slate-400">
-          ※ お台場の夜景が綺麗な海辺での本格プロポーズ演出は近日実装予定 🌊
-        </p>
       </div>
 
       {/* シーンギャラリーオーバーレイ */}

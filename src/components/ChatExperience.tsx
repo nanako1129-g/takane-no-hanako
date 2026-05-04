@@ -81,6 +81,11 @@ export interface ChatExperienceProps {
 }
 
 const MESSAGES_PREFIX = "messages_";
+
+/** 誤配布などで localStorage に残った開幕挨拶。復元時は最新の greeting に差し替える */
+const OBSOLETE_LINE_OPENING_ASSISTANT_TEXT = new Set([
+  "こんばんは。今日は冷えますね。",
+]);
 const PROPOSAL_PREFIX = "proposal_";
 const AWAITING_PREFIX = "awaiting_outing_";
 const POST_ENDING_PREFIX = "post_ending_";
@@ -381,10 +386,24 @@ export default function ChatExperience({
       );
       if (raw) {
         const parsed = JSON.parse(raw) as Message[];
-        if (Array.isArray(parsed)) {
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const first = parsed[0];
+          const opener = interpolateUserName(
+            character.greeting ?? "こんばんは。",
+            userProfile?.name ?? ""
+          );
+          if (
+            first.role === "assistant" &&
+            typeof first.content === "string" &&
+            OBSOLETE_LINE_OPENING_ASSISTANT_TEXT.has(first.content)
+          ) {
+            parsed[0] = { ...first, content: opener };
+          }
           setMessages(parsed);
           const pending = parsed.find((m) => m.proposalChoices);
           setProposalChoiceMsgId(pending?.id ?? null);
+        } else if (Array.isArray(parsed)) {
+          setMessages(parsed);
         }
       }
     } catch {

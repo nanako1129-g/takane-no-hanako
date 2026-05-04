@@ -40,7 +40,8 @@ export function BgmPreferenceProvider({
 }: {
   children: React.ReactNode;
 }) {
-  const [enabled, setEnabledState] = useState(true);
+  /** 永続化読み込み前は OFF（`loadBgmPreference` の初回デフォルトと一致） */
+  const [enabled, setEnabledState] = useState(false);
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
