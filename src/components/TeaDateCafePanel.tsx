@@ -17,8 +17,10 @@ const DEFAULT_TEA_DATE_CAFE_INTRO =
   "ここのコーヒー、香りがいいんですよ。\n" +
   "…来てくれて、ありがとうございます。";
 
-/** 誰もいない喫茶店を見せる時間 */
-const CAFE_SOLO_HOLD_MS = 1100;
+/** 画像を最初に表示するまでのフェードイン時間（シーンオーバーレイが消えるタイミングに合わせる） */
+const CAFE_IMAGE_SHOW_MS = 200;
+/** 誰もいない広角写真を見せる時間（画像表示開始からの追加待ち） */
+const CAFE_SOLO_HOLD_MS = 2000;
 /** 彼が入ってくる（wide → portrait）クロスフェード時間 */
 const CAFE_PAIR_CROSS_MS = 1000;
 /** クロスフェード後、UI 表示（挨拶文）を始めるまでの余韻 */
@@ -87,10 +89,12 @@ export function TeaDateCafePanel({
   const showSceneHero = hasPairCafe || Boolean(resolvedSingleBg);
 
   const [entranceDone, setEntranceDone] = useState(false);
+  /** 画像コンテナを表示するフラグ（すぐに opacity-100 にする） */
+  const [imageVisible, setImageVisible] = useState(false);
   /**
    * 入場タイマーで制御する「彼が到着した」フラグ。
-   * - false: 誰もいない広角写真を表示
-   * - true : アップ写真へクロスフェード（→ その後に挨拶文）
+   * - false: 広角写真を表示（座って待っているシーン）
+   * - true : アップ写真へクロスフェード
    */
   const [characterArrived, setCharacterArrived] = useState(false);
   const pairLayerVisible = hasPairCafe && characterArrived;
@@ -121,11 +125,13 @@ export function TeaDateCafePanel({
       );
     };
 
-    // 1. 誰もいない広角写真を見せる（CAFE_SOLO_HOLD_MS）
+    // 0. すぐに画像を表示（opacity 0 → 1）
+    // 1. 広角写真（座って待つシーン）をじっくり見せる（CAFE_SOLO_HOLD_MS）
     // 2. 彼が到着 → クロスフェード開始（CAFE_PAIR_CROSS_MS）
     // 3. 余韻の後 UI 解放・挨拶文表示（CAFE_POST_AMBIENT_MS）
-    after(CAFE_SOLO_HOLD_MS, () => setCharacterArrived(true));
-    after(CAFE_SOLO_HOLD_MS + CAFE_PAIR_CROSS_MS + CAFE_POST_AMBIENT_MS, () =>
+    after(CAFE_IMAGE_SHOW_MS, () => setImageVisible(true));
+    after(CAFE_IMAGE_SHOW_MS + CAFE_SOLO_HOLD_MS, () => setCharacterArrived(true));
+    after(CAFE_IMAGE_SHOW_MS + CAFE_SOLO_HOLD_MS + CAFE_PAIR_CROSS_MS + CAFE_POST_AMBIENT_MS, () =>
       setEntranceDone(true)
     );
 
@@ -376,7 +382,7 @@ export function TeaDateCafePanel({
       <div className="relative z-[1] flex min-h-0 flex-1 flex-col overflow-hidden">
         {/* 喫茶店の1枚絵（中央に配置） */}
         {showSceneHero ? (
-          <div className={`shrink-0 px-3 pb-1.5 pt-2 transition-opacity duration-700 sm:px-4 sm:pb-2 sm:pt-3 ${entranceDone ? "opacity-100" : "opacity-60"}`}>
+          <div className={`shrink-0 px-3 pb-1.5 pt-2 transition-opacity duration-500 sm:px-4 sm:pb-2 sm:pt-3 ${imageVisible ? "opacity-100" : "opacity-0"}`}>
             <div
               className="relative isolate mx-auto h-[min(26vh,200px)] overflow-hidden rounded-2xl shadow-[0_8px_32px_-8px_rgba(0,0,0,0.28)] ring-1 ring-white/80 sm:h-[min(36vh,320px)]"
               style={{ maxWidth: "min(92vw, 420px)" }}
