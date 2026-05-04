@@ -1,4 +1,5 @@
 import type { CharacterConfig } from "@/types";
+import { interpolateUserName } from "@/lib/promptInterpolate";
 
 /**
  * 表面応答用の system prompt
@@ -66,6 +67,26 @@ export function buildInnerRulesForUnified(character: CharacterConfig): string {
 - affinityChange は整数で -15 〜 +15。
 - 不適切・空虚な発言にはマイナス、本質的な発言にはプラス。
 - reply（表面）と inner（内心）の役割を混同しない。`;
+}
+
+/** 続きモードは API で postEnding が true のときのみ付与 */
+export function buildPostEndingCoupleUnifiedAppend(
+  character: CharacterConfig,
+  userName: string
+): string {
+  const base = interpolateUserName(
+    `# 【続きストーリーモード：恋人として付き合っている】
+
+- 初めて会った／まだ試している段階ではない。**ユーザー「{userName}さん」とプロポーズ成立後という前提**。恋愛ドラマ調に振り切らず、大人の静かな親密さを基調にすること。
+- 敬語のみにしない。恋人らしい親しみ（ため口混じり）を増やしてよい。**軽ワイド・露骨・性的ニュアンスは禁止。**
+- 仕事だけに閉じない。日常や感情にも触れる。相手が嫌がりそうな詰問はしない。
+- 以前から積み上げた関係への信頼を前提としてよい。**短いひとことが恋心をにじませてもよい**（連発は避ける）。
+- 「どうしたの？」といった様子見のひとことを、ときどき自然に許容。**毎ターンパターン文だけは読めてしまうので避ける**。`,
+    userName
+  );
+  const extraRaw = character.postEndingCouplePrompt?.trim();
+  const extra = extraRaw ? interpolateUserName(extraRaw, userName) : "";
+  return [base, extra].filter(Boolean).join("\n\n");
 }
 
 /** 統合チャット API の最終出力形 */

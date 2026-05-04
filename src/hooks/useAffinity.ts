@@ -6,7 +6,8 @@ const STORAGE_PREFIX = "affinity_";
 
 function clamp(value: number): number {
   if (!Number.isFinite(value)) return 0;
-  return Math.max(0, Math.min(100, Math.round(value)));
+  /** 続きプレイで 100 を超えうるため保存上限は 200 */
+  return Math.max(0, Math.min(200, Math.round(value)));
 }
 
 export function useAffinity(charId: string, initialAffinity: number) {

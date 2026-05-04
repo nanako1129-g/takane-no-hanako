@@ -9,7 +9,9 @@ import { MessageInput } from "@/components/MessageInput";
 import { messageContentForGemini } from "@/lib/stamps";
 import { assistantTypingDelayMs, sleepMs } from "@/lib/replyLatency";
 import { interpolateUserName } from "@/lib/promptInterpolate";
+import { useCompanionSilencePing } from "@/hooks/useCompanionSilencePing";
 import { useBarPolarisAmbient } from "@/hooks/useBarPolarisAmbient";
+import { COMPANION_IDLE_SILENCE_MS } from "@/lib/companionIdle";
 import type { AffinityPulse, Character, ChatResponseBody, Message } from "@/types";
 
 /** 共通テロップ（`CharacterConfig.barDateLocationTelop` で上書き可） */
@@ -50,6 +52,7 @@ export type BarVenuePanelProps = {
   onInterruptBarDate: () => void;
   /** `setLeaving(true)` と同タイミングで呼ばれる（親側の暗転用） */
   onBeforeLeave?: () => void;
+  postEndingCouplePlay?: boolean;
 };
 
 export function BarVenuePanel({
@@ -68,14 +71,26 @@ export function BarVenuePanel({
   onFinishedBarDate,
   onInterruptBarDate,
   onBeforeLeave,
+  postEndingCouplePlay = false,
 }: BarVenuePanelProps) {
   const [messages, setMessages] = useState<Message[]>([]);
+  const messagesRef = useRef<Message[]>([]);
+  const affinityRefProp = useRef(affinity);
+  const [companionEpoch, setCompanionEpoch] = useState(0);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [leaving, setLeaving] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const departRef = useRef<() => void>(() => {});
   const introOnce = useRef(false);
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  useEffect(() => {
+    affinityRefProp.current = affinity;
+  }, [affinity]);
 
   const emptySrc = character.barDateEmptyBackgroundSrc?.trim();
   const withSrc = character.barDateWithCharacterBackgroundSrc?.trim();
@@ -295,6 +310,7 @@ export function BarVenuePanel({
           maxTurns,
           charId: character.id,
           userMessage: messageContentForGemini(userMsg),
+          postEndingCouplePlay,
         };
 
         const res = await fetch("/api/chat", {
@@ -350,6 +366,7 @@ export function BarVenuePanel({
         }
 
         onVenueTurnCompleted();
+        setCompanionEpoch((n) => n + 1);
       } catch (e) {
         console.error(e);
         setMessages((prev) => prev.filter((m) => m.id !== userMsg.id));
@@ -375,8 +392,114 @@ export function BarVenuePanel({
       silenceInnerLine,
       silenceInnerOnTurn,
       userName,
+      postEndingCouplePlay,
     ]
   );
+
+  const runCompanionIdleBar = useCallback(async (): Promise<boolean> => {
+    if (!postEndingCouplePlay) return false;
+    const msgs = messagesRef.current;
+    if (!msgs.length || msgs[msgs.length - 1].role !== "assistant") {
+      return false;
+    }
+    setSending(true);
+    try {
+      const historyForApi = msgs.map((m) => ({
+        role: m.role,
+        content: messageContentForGemini(m),
+      }));
+      const body = {
+        messages: historyForApi,
+        affinity: affinityRefProp.current,
+        userName,
+        teaDateBar: true,
+        turnsInScene,
+        maxTurns,
+        charId: character.id,
+        userMessage: "",
+        postEndingCouplePlay: true,
+        companionIdlePoke: true,
+        companionIdleVenue: "bar" as const,
+      };
+
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const errBody = (await res.json().catch(() => ({}))) as {
+          error?: string;
+        };
+        throw new Error(errBody.error || `HTTP ${res.status}`);
+      }
+      const data = (await res.json()) as ChatResponseBody;
+
+      const wait = assistantTypingDelayMs(
+        character,
+        affinityRefProp.current
+      );
+      if (wait > 0) {
+        await sleepMs(wait);
+      }
+
+      const assistantMsg: Message = {
+        id: newMsgId(),
+        role: "assistant",
+        content: data.reply,
+        inner: data.inner || undefined,
+        affinityChange: data.affinityChange ?? 0,
+        createdAt: Date.now(),
+      };
+      setMessages((prev) => [...prev, assistantMsg]);
+
+      if (bgmEnabled) {
+        try {
+          const se = new Audio("/audio/bar-reply.mp3");
+          se.volume = 0.45;
+          void se.play();
+        } catch { /* ignore */ }
+      }
+
+      const delta =
+        typeof data.affinityChange === "number" &&
+        Number.isFinite(data.affinityChange)
+          ? Math.max(-15, Math.min(15, Math.round(data.affinityChange)))
+          : 0;
+      if (delta !== 0) {
+        onAffinityDelta(delta);
+      }
+
+      setCompanionEpoch((n) => n + 1);
+      return true;
+    } catch (e) {
+      console.error(e);
+      setCompanionEpoch((n) => n + 1);
+      return false;
+    } finally {
+      setSending(false);
+    }
+  }, [
+    bgmEnabled,
+    character,
+    maxTurns,
+    postEndingCouplePlay,
+    onAffinityDelta,
+    turnsInScene,
+    userName,
+  ]);
+
+  useCompanionSilencePing({
+    enabled: postEndingCouplePlay && entranceDone && !leaving,
+    paused: sending || inputBlocked || !postEndingCouplePlay || !entranceDone,
+    silenceMs: COMPANION_IDLE_SILENCE_MS,
+    companionMayNudge: Boolean(
+      messages.length > 0 &&
+        messages[messages.length - 1]?.role === "assistant"
+    ),
+    activityEpoch: companionEpoch,
+    onPing: runCompanionIdleBar,
+  });
 
   const whiteFadeOutMs = whiteVeilGone ? WHITE_OUT_MS : 0;
 

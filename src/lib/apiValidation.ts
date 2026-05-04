@@ -27,9 +27,26 @@ export function sanitizeCharId(value: unknown): string | null {
   return s;
 }
 
-export function sanitizeAffinity(value: unknown): number {
+export function sanitizeAffinity(value: unknown, maxCap: 100 | 200 = 100): number {
   if (typeof value !== "number" || !Number.isFinite(value)) return 50;
-  return Math.max(0, Math.min(100, Math.round(value)));
+  return Math.max(0, Math.min(maxCap, Math.round(value)));
+}
+
+/** `/api/chat` エンディング後続きモードで恋人シナリオ用のフラグ（未送信時・不正時は false） */
+export function sanitizePostEndingCouplePlay(value: unknown): boolean {
+  return value === true;
+}
+
+/** ユーザー無言トリガでの同伴ヒント生成（続きモード時のみ許可される想定） */
+export function sanitizeCompanionIdlePoke(value: unknown): boolean {
+  return value === true;
+}
+
+export function sanitizeCompanionIdleVenue(
+  value: unknown
+): "line" | "cafe" | "bar" {
+  if (value === "cafe" || value === "bar") return value;
+  return "line";
 }
 
 /** `/api/chat` のデート誘いフラグ（未指定・不正時は通常チャット） */

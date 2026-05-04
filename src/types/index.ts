@@ -150,6 +150,11 @@ export type CharacterConfig = {
   intimacySecretAssistantMessage?: string;
   /** 上記を挿入する好感度の下限（未指定時は `proposalThreshold`、`proposalThreshold` も無ければ 95） */
   intimacySecretAffinityThreshold?: number;
+  /**
+   * エンディング後の続きプレイ（恋人同士）時にのみ system に追記される指示。
+   * 親密度・口調の再定義など（未設定時は共通ブロックのみ）。
+   */
+  postEndingCouplePrompt?: string;
 };
 
 /** 複数キャラ対応時のエイリアス */

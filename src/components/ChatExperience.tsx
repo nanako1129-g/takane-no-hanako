@@ -56,8 +56,10 @@ import {
   stamps as stampDefinitions,
 } from "@/lib/stamps";
 import { useAffinity } from "@/hooks/useAffinity";
+import { useCompanionSilencePing } from "@/hooks/useCompanionSilencePing";
 import { useLineChatAmbient } from "@/hooks/useLineChatAmbient";
 import { useProposalMomentAmbient } from "@/hooks/useProposalAmbient";
+import { COMPANION_IDLE_SILENCE_MS } from "@/lib/companionIdle";
 import { interpolateUserName } from "@/lib/promptInterpolate";
 import type {
   AffinityPulse,
@@ -143,6 +145,8 @@ export default function ChatExperience({
   /** エンディング後の続きプレイモード（好感度上限200） */
   const [postEnding, setPostEnding] = useState(false);
   const affinityMax = postEnding ? 200 : 100;
+  /** 無言トリガ／ユーザー送信ごとに増やして沈黙タイマーをリセット */
+  const [companionActivityEpoch, setCompanionActivityEpoch] = useState(0);
 
   /** シーン遷移時の暗転オーバーレイ制御 */
   const [sceneDim, setSceneDim] = useState(false);
@@ -150,7 +154,12 @@ export default function ChatExperience({
   const [fadingToEnding, setFadingToEnding] = useState(false);
 
   const [messages, setMessages] = useState<Message[]>([]);
+  const messagesRef = useRef<Message[]>([]);
   const [historyHydrated, setHistoryHydrated] = useState(false);
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -599,6 +608,7 @@ export default function ChatExperience({
           ...(inviteAcceptance ? { inviteType: inviteAcceptance } : {}),
           charId: character.id,
           userMessage: messageContentForGemini(userMsg),
+          postEndingCouplePlay: postEnding,
         };
 
         const res = await fetch("/api/chat", {
@@ -684,6 +694,8 @@ export default function ChatExperience({
         ) {
           setProposalDelivered(false);
         }
+
+        setCompanionActivityEpoch((x) => x + 1);
       } catch (err) {
         if (conversationEpochRef.current !== epochSnapshot) {
           return;
@@ -716,6 +728,7 @@ export default function ChatExperience({
       sceneState.mode,
       sceneState.turnsInScene,
       userProfile?.name,
+      postEnding,
     ]
   );
 
@@ -776,6 +789,139 @@ export default function ChatExperience({
     [sendUserRound, bgmEnabled]
   );
 
+  const runCompanionIdlePokeLine = useCallback(async (): Promise<boolean> => {
+    if (!postEnding) return false;
+    const msgs = messagesRef.current;
+    if (!msgs.length || msgs[msgs.length - 1].role !== "assistant") {
+      return false;
+    }
+    const epochSnapshot = conversationEpochRef.current;
+    setSending(true);
+    try {
+      const historyForApi = msgs.map((m) => ({
+        role: m.role,
+        content: messageContentForGemini(m),
+      }));
+      const body = {
+        messages: historyForApi,
+        affinity: affinityRef.current,
+        userName: userProfile?.name ?? "",
+        teaDateCafe: false,
+        teaDateBar: false,
+        turnsInScene: 0,
+        maxTurns: 0,
+        charId: character.id,
+        userMessage: "",
+        postEndingCouplePlay: true,
+        companionIdlePoke: true,
+        companionIdleVenue: "line" as const,
+      };
+
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      if (conversationEpochRef.current !== epochSnapshot) {
+        return false;
+      }
+
+      if (!res.ok) {
+        const errBody = (await res.json().catch(() => ({}))) as {
+          error?: string;
+        };
+        throw new Error(errBody.error || `HTTP ${res.status}`);
+      }
+
+      const data = (await res.json()) as ChatResponseBody;
+
+      if (conversationEpochRef.current !== epochSnapshot) {
+        return false;
+      }
+
+      const delayMs = assistantTypingDelayMs(character, affinityRef.current);
+      if (delayMs > 0) {
+        await sleepMs(delayMs);
+      }
+      if (conversationEpochRef.current !== epochSnapshot) {
+        return false;
+      }
+
+      const delta =
+        typeof data.affinityChange === "number" ? data.affinityChange : 0;
+      const change = delta;
+      const newAffinity = clampAffinity(
+        affinityRef.current + change,
+        affinityMax
+      );
+
+      const assistantMsg: Message = {
+        id: newId(),
+        role: "assistant",
+        content: data.reply,
+        inner: data.inner || undefined,
+        affinityChange: data.affinityChange ?? 0,
+        createdAt: Date.now(),
+      };
+
+      setMessages((prev) => [...prev, assistantMsg]);
+      setAffinity(newAffinity);
+      setAffinityPulse({ delta: change, timestamp: Date.now() });
+      setDateProgress((prev) => evaluateUnlocks(newAffinity, prev, character));
+
+      const propTh = proposalThreshold;
+      setProposalDelivered((delivered) =>
+        typeof propTh === "number" &&
+        newAffinity >= propTh &&
+        delivered
+          ? false
+          : delivered
+      );
+
+      setCompanionActivityEpoch((e) => e + 1);
+      return true;
+    } catch (e) {
+      console.error(e);
+      setCompanionActivityEpoch((e) => e + 1);
+      return false;
+    } finally {
+      setSending(false);
+    }
+  }, [
+    postEnding,
+    character,
+    userProfile?.name,
+    affinityMax,
+    proposalThreshold,
+    setAffinity,
+    setAffinityPulse,
+    setDateProgress,
+    setMessages,
+    setProposalDelivered,
+    setSending,
+  ]);
+
+  const companionSilenceLineMayNudge =
+    messages.length > 0 &&
+    messages[messages.length - 1]?.role === "assistant";
+
+  useCompanionSilencePing({
+    enabled:
+      Boolean(postEnding) && historyHydrated && affinityHydrated,
+    paused:
+      sending ||
+      proposalPending ||
+      venueUiOpen ||
+      sceneState.mode !== "line" ||
+      !historyHydrated ||
+      !affinityHydrated,
+    silenceMs: COMPANION_IDLE_SILENCE_MS,
+    companionMayNudge: companionSilenceLineMayNudge,
+    activityEpoch: companionActivityEpoch,
+    onPing: runCompanionIdlePokeLine,
+  });
+
   const handleReset = useCallback(() => {
     if (
       typeof window !== "undefined" &&
@@ -805,6 +951,7 @@ export default function ChatExperience({
     setSceneState(lineSceneState());
 
     setPostEnding(false);
+    setCompanionActivityEpoch(0);
 
     if (typeof window !== "undefined") {
       window.localStorage.removeItem(`${PROPOSAL_PREFIX}${character.id}`);
@@ -1491,6 +1638,7 @@ export default function ChatExperience({
           onFinishedTeaDate={finishTeaDateAndReturnLine}
           onInterruptTeaDate={interruptTeaDateCafeWithoutProgress}
           onBeforeLeave={() => setSceneDim(true)}
+          postEndingCouplePlay={postEnding}
         />
       ) : null}
       {sceneState.mode === "bar" ? (
@@ -1511,6 +1659,7 @@ export default function ChatExperience({
           onFinishedBarDate={finishBarDateAndReturnLine}
           onInterruptBarDate={interruptBarVenueWithoutProgress}
           onBeforeLeave={() => setSceneDim(true)}
+          postEndingCouplePlay={postEnding}
         />
       ) : null}
       {sceneState.mode === "proposal" ? (

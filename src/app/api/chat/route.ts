@@ -3,9 +3,12 @@ import { getCharacter } from "@/characters";
 import {
   sanitizeAffinity,
   sanitizeCharId,
+  sanitizeCompanionIdlePoke,
+  sanitizeCompanionIdleVenue,
   sanitizeConversationMessages,
   sanitizeInviteType,
   sanitizeModelReply,
+  sanitizePostEndingCouplePlay,
   sanitizeTeaDateCafeFlag,
   sanitizeTeaDateBarFlag,
   sanitizeTeaDateCafeMaxTurns,
@@ -13,10 +16,12 @@ import {
   sanitizeUserMessage,
   LIMITS,
 } from "@/lib/apiValidation";
+import { companionIdleCueForVenue } from "@/lib/companionIdle";
 import { interpolateCafeSceneSystemPrompt } from "@/lib/cafeScenePrompt";
 import { extractJson, getModel, toGeminiHistory } from "@/lib/gemini";
 import {
   buildInnerRulesForUnified,
+  buildPostEndingCoupleUnifiedAppend,
   buildSurfacePromptForUnified,
   buildUnifiedChatJsonContract,
 } from "@/lib/prompts";
@@ -51,7 +56,26 @@ export async function POST(req: Request) {
     );
   }
 
-  const userMessage = sanitizeUserMessage(b.userMessage);
+  const postEndingCouplePlay = sanitizePostEndingCouplePlay(
+    (b as Record<string, unknown>).postEndingCouplePlay
+  );
+  const companionIdlePoke = sanitizeCompanionIdlePoke(
+    (b as Record<string, unknown>).companionIdlePoke
+  );
+
+  let userMessage: string | null = sanitizeUserMessage(b.userMessage);
+  if (companionIdlePoke) {
+    if (!postEndingCouplePlay) {
+      return NextResponse.json(
+        { error: "無言イベントは続きモードでのみ利用できます。" },
+        { status: 400 }
+      );
+    }
+    const venue = sanitizeCompanionIdleVenue(
+      (b as Record<string, unknown>).companionIdleVenue
+    );
+    userMessage = companionIdleCueForVenue(venue);
+  }
 
   if (!charId || !userMessage) {
     return NextResponse.json(
@@ -68,7 +92,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Character not found." }, { status: 404 });
   }
 
-  const affinity = sanitizeAffinity(b.affinity);
+  const affinityCap = postEndingCouplePlay ? 200 : 100;
+  const affinity = sanitizeAffinity(b.affinity, affinityCap);
   const inviteAcceptance = sanitizeInviteType(b.inviteType);
   const teaDateCafe = sanitizeTeaDateCafeFlag(b.teaDateCafe);
   const teaDateBar = sanitizeTeaDateBarFlag(b.teaDateBar);
@@ -162,14 +187,24 @@ export async function POST(req: Request) {
       ? interpolateUserName(inviteFallback.trim(), userName)
       : "";
 
+  const postEndingCoupleUnified = postEndingCouplePlay
+    ? buildPostEndingCoupleUnifiedAppend(character, userName)
+    : "";
+
+  const idlePokeUnified = companionIdlePoke
+    ? `【無言イベント】ユーザーはこの〜30秒ほど自分から喋っていない（システム裏指示）。キャラ側から短いひとことを返してください。reply は1〜2文、押しつけがましくしない。親密トリガであり雑談でよい。affinityChange は 0 が中心（強い感情の揺らぎのみ ±1〜2）。内心はより素直でもよいが30文字以内。`
+    : "";
+
   const unifiedSystem = [
     addressingGuidance,
     surfaceUnifiedInterpolated,
     venuePromptInterpolated,
     inviteInterpolatedOnly,
+    postEndingCoupleUnified,
+    idlePokeUnified,
     innerRulesInterpolated,
     buildUnifiedChatJsonContract(),
-    `【参照】このターン直前のユーザー好感度は ${affinity} / 100 です。affinityChange はこの発言への反応としての増減のみ。`,
+    `【参照】このターン直前のユーザー好感度は ${affinity} / ${affinityCap} です。affinityChange はこの発言への反応としての増減のみ。`,
   ]
     .filter(Boolean)
     .join("\n\n");
