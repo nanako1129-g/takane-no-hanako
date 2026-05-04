@@ -695,6 +695,14 @@ export default function ChatExperience({
       const def = getStampFromCatalog(stampId);
       if (!def) return;
 
+      if (bgmEnabled) {
+        try {
+          const se = new Audio("/audio/stamp.mp3");
+          se.volume = 0.55;
+          void se.play();
+        } catch { /* ignore */ }
+      }
+
       const userMsg: Message = {
         id: newId(),
         role: "user",
@@ -706,7 +714,7 @@ export default function ChatExperience({
 
       await sendUserRound(userMsg);
     },
-    [sendUserRound]
+    [sendUserRound, bgmEnabled]
   );
 
   const handleReset = useCallback(() => {
