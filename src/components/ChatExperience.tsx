@@ -505,7 +505,7 @@ export default function ChatExperience({
     const el = scrollRef.current;
     if (!el) return;
     el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
-  }, [messages, sending]);
+  }, [messages, sending, showOvernightMorningHero]);
 
   /** 好感度が閾値を超えた最初のタイミング（または復元済みの高好感度セーブ時）での一度きり独白 */
   useEffect(() => {
@@ -1577,20 +1577,6 @@ export default function ChatExperience({
           ref={scrollRef}
           className="scrollbar-thin min-h-0 flex-1 space-y-4 overflow-y-auto px-4 pb-4 pt-2"
         >
-          {showOvernightMorningHero ? (
-            <div className="mx-auto w-full max-w-[380px] overflow-hidden rounded-2xl border border-rose-100 bg-white/70 p-2 shadow-sm">
-              <div className="relative mx-auto h-[220px] w-full sm:h-[280px]">
-                <Image
-                  src={OVERNIGHT_MORNING_HERO_SRC}
-                  alt="朝の花咲さん"
-                  fill
-                  sizes="(max-width: 640px) 92vw, 380px"
-                  className="object-contain object-center scale-[0.9] sm:scale-100"
-                  priority
-                />
-              </div>
-            </div>
-          ) : null}
           {!historyHydrated || !affinityHydrated ? (
             <p className="py-8 text-center text-xs text-slate-400">
               読み込み中…
@@ -1614,6 +1600,20 @@ export default function ChatExperience({
               />
             ))
           )}
+          {showOvernightMorningHero ? (
+            <div className="mx-auto w-full max-w-[380px] overflow-hidden rounded-2xl border border-rose-100 bg-white/70 p-2 shadow-sm">
+              <div className="relative mx-auto h-[220px] w-full sm:h-[280px]">
+                <Image
+                  src={OVERNIGHT_MORNING_HERO_SRC}
+                  alt="朝の花咲さん"
+                  fill
+                  sizes="(max-width: 640px) 92vw, 380px"
+                  className="object-contain object-center scale-[0.9] sm:scale-100"
+                  priority
+                />
+              </div>
+            </div>
+          ) : null}
           {sending && (
             <div className="flex items-center gap-2 px-1 text-xs text-slate-400">
               <span className="inline-flex gap-1">
