@@ -25,6 +25,7 @@ import { UnlockToast } from "@/components/UnlockToast";
 import { usePlayerProfileState } from "@/components/PlayerNameProvider";
 import { BarVenuePanel } from "@/components/BarVenuePanel";
 import { TeaDateCafePanel } from "@/components/TeaDateCafePanel";
+import { ProposalDatePanel } from "@/components/ProposalDatePanel";
 import {
   getCharacter,
   pickCharacterPortrait,
@@ -68,7 +69,7 @@ import type {
   SceneEvent,
   SceneState,
 } from "@/types";
-import { lineSceneState, venueSceneState } from "@/types";
+import { lineSceneState, proposalSceneState, venueSceneState } from "@/types";
 
 export interface ChatExperienceProps {
   charId: string;
@@ -171,6 +172,8 @@ export default function ChatExperience({
   const [awaitingTeaOuting, setAwaitingTeaOutingRaw] = useState(false);
   /** 飲み承諾後のバー入室待ち（localStorage で永続化） */
   const [awaitingDrinkOuting, setAwaitingDrinkOutingRaw] = useState(false);
+  /** プロポーズデート招待後の「💍 デートに行く」待ち状態（localStorage で永続化） */
+  const [awaitingProposalDate, setAwaitingProposalDateRaw] = useState(false);
 
   const setAwaitingTeaOuting = useCallback((val: boolean) => {
     setAwaitingTeaOutingRaw(val);
@@ -195,14 +198,37 @@ export default function ChatExperience({
       }
     } catch { /* ignore */ }
   }, [character.id]);
+
+  const setAwaitingProposalDate = useCallback((val: boolean) => {
+    setAwaitingProposalDateRaw(val);
+    try {
+      if (val) {
+        window.localStorage.setItem(`${AWAITING_PREFIX}${character.id}`, "proposal");
+      } else {
+        const cur = window.localStorage.getItem(`${AWAITING_PREFIX}${character.id}`);
+        if (cur === "proposal") window.localStorage.removeItem(`${AWAITING_PREFIX}${character.id}`);
+      }
+    } catch { /* ignore */ }
+  }, [character.id]);
+
   /** LINE / 店シーンの進行（バーは将来 `mode: "bar"` で拡張） */
   const [sceneState, setSceneState] = useState<SceneState>(() =>
     lineSceneState()
   );
   const [teaDateSessionKey, setTeaDateSessionKey] = useState(0);
 
+  /** シーン遷移タイトルカード */
+  const [sceneTitleCard, setSceneTitleCard] = useState<{
+    emoji: string;
+    name: string;
+    sub?: string;
+  } | null>(null);
+  const [sceneTitleVisible, setSceneTitleVisible] = useState(false);
+
   const venueUiOpen =
-    sceneState.mode === "cafe" || sceneState.mode === "bar";
+    sceneState.mode === "cafe" ||
+    sceneState.mode === "bar" ||
+    sceneState.mode === "proposal";
 
   /** `npm run dev` または `NEXT_PUBLIC_DEV_TOOLS=1`（ハッカソン即席デモ） */
   const showAffinityDemoTools = showChatAffinityDemoTools();
@@ -298,7 +324,7 @@ export default function ChatExperience({
     affinityHydrated,
   ]);
 
-  const proposalPending = proposalChoiceMsgId !== null;
+  const proposalPending = proposalChoiceMsgId !== null || awaitingProposalDate;
 
   const lineAmbientActive = sceneState.mode === "line" && !proposalPending;
 
@@ -324,11 +350,12 @@ export default function ChatExperience({
     }
     setHistoryHydrated(true);
 
-    // お茶・飲みの「承諾後ボタン」状態を復元
+    // お茶・飲み・プロポーズの「承諾後ボタン」状態を復元
     try {
       const outing = window.localStorage.getItem(`${AWAITING_PREFIX}${character.id}`);
       if (outing === "tea") setAwaitingTeaOutingRaw(true);
       else if (outing === "drink") setAwaitingDrinkOutingRaw(true);
+      else if (outing === "proposal") setAwaitingProposalDateRaw(true);
     } catch { /* ignore */ }
   }, [character.id]);
 
@@ -441,22 +468,32 @@ export default function ChatExperience({
         typeof t === "number" &&
         Boolean(proposeText) &&
         !proposalDelivered &&
+        !awaitingProposalDate &&
         !messages.some((m) => m.proposalChoices) &&
         canTriggerProposal(affinity, dateProgress, character);
 
       if (proposeGate && userMsg.role === "user") {
         setSending(true);
         setMessages((prev) => [...prev, userMsg]);
-        const aid = newId();
-        const assistantProposal: Message = {
-          id: aid,
-          role: "assistant",
-          content: proposeText ?? "",
-          createdAt: Date.now(),
-          proposalChoices: true,
-        };
-        setMessages((prev) => [...prev, assistantProposal]);
-        setProposalChoiceMsgId(aid);
+        // 招待メッセージを LINE 上に挿入し、「デートに行く」ボタン待ちへ
+        const inviteSource =
+          character.proposalDateInviteAssistantMessage?.trim() ||
+          "少し、話したいことがあって。よかったら、今度二人でどこかで会えませんか。";
+        const inviteText = interpolateUserName(
+          inviteSource,
+          userProfile?.name ?? ""
+        );
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: newId(),
+            role: "assistant",
+            content: inviteText,
+            createdAt: Date.now(),
+          },
+        ]);
+        setProposalDelivered(true);
+        setAwaitingProposalDate(true);
         setSending(false);
         return;
       }
@@ -593,9 +630,11 @@ export default function ChatExperience({
       character,
       dateProgress,
       messages,
+      awaitingProposalDate,
       proposalDelivered,
       proposalText,
       proposalThreshold,
+      setAwaitingProposalDate,
       chatUserName,
       sceneState.maxTurns,
       sceneState.mode,
@@ -670,6 +709,7 @@ export default function ChatExperience({
     setPendingInviteAcceptance(null);
     setAwaitingTeaOuting(false);
     setAwaitingDrinkOuting(false);
+    setAwaitingProposalDate(false);
     setSceneState(lineSceneState());
 
     if (typeof window !== "undefined") {
@@ -681,7 +721,7 @@ export default function ChatExperience({
       clearCachedAnalysis(character.id);
       clearIntimateSecretShown(character.id);
     }
-  }, [character, setAffinity, setAwaitingTeaOuting, setAwaitingDrinkOuting]);
+  }, [character, setAffinity, setAwaitingTeaOuting, setAwaitingDrinkOuting, setAwaitingProposalDate]);
 
   /** 開発デモ用：会話せず親密度のみ変更（解放トーストやデート進行も同期） */
   const applyDemoAffinity = useCallback(
@@ -774,34 +814,94 @@ export default function ChatExperience({
     );
   }, []);
 
+  /** 暗転 → タイトルカード表示 → シーン切り替え → 明転 の共通シーケンス */
+  const enterSceneWithTitleCard = useCallback(
+    (
+      card: { emoji: string; name: string; sub?: string } | null,
+      switchFn: () => void
+    ) => {
+      setSceneDim(true);
+      if (card) {
+        window.setTimeout(() => {
+          setSceneTitleCard(card);
+          window.setTimeout(() => setSceneTitleVisible(true), 60);
+        }, 320);
+        window.setTimeout(() => setSceneTitleVisible(false), 1300);
+        window.setTimeout(() => {
+          switchFn();
+        }, 1550);
+        window.setTimeout(() => {
+          setSceneDim(false);
+          setSceneTitleCard(null);
+        }, 1700);
+      } else {
+        window.setTimeout(() => {
+          switchFn();
+          window.setTimeout(() => setSceneDim(false), 120);
+        }, 300);
+      }
+    },
+    []
+  );
+
   const enterTeaDateCafeScene = useCallback(() => {
-    setSceneDim(true);
-    window.setTimeout(() => {
-      conversationEpochRef.current += 1;
-      setTeaDateSessionKey((k) => k + 1);
-      setAwaitingTeaOuting(false);
-      setSceneState(venueSceneState("cafe"));
-      setSending(false);
-      setError(null);
-      setAffinityPulse(null);
-      // 会場パネルが z-[100] で覆った後にオーバーレイを消す
-      window.setTimeout(() => setSceneDim(false), 120);
-    }, 300);
-  }, [setAwaitingTeaOuting]);
+    const name = character.teaDateLocationName ?? "喫茶店";
+    enterSceneWithTitleCard(
+      { emoji: "☕", name, sub: "— お茶の時間 —" },
+      () => {
+        conversationEpochRef.current += 1;
+        setTeaDateSessionKey((k) => k + 1);
+        setAwaitingTeaOuting(false);
+        setSceneState(venueSceneState("cafe"));
+        setSending(false);
+        setError(null);
+        setAffinityPulse(null);
+      }
+    );
+  }, [setAwaitingTeaOuting, enterSceneWithTitleCard, character.teaDateLocationName]);
 
   const enterBarVenueScene = useCallback(() => {
-    setSceneDim(true);
-    window.setTimeout(() => {
-      conversationEpochRef.current += 1;
-      setTeaDateSessionKey((k) => k + 1);
-      setAwaitingDrinkOuting(false);
-      setSceneState(venueSceneState("bar"));
-      setSending(false);
-      setError(null);
-      setAffinityPulse(null);
-      window.setTimeout(() => setSceneDim(false), 120);
-    }, 300);
-  }, [setAwaitingDrinkOuting]);
+    const name = character.barDateLocationName ?? "居酒屋";
+    enterSceneWithTitleCard(
+      { emoji: "🍶", name, sub: "— 夜のお酒 —" },
+      () => {
+        conversationEpochRef.current += 1;
+        setTeaDateSessionKey((k) => k + 1);
+        setAwaitingDrinkOuting(false);
+        setSceneState(venueSceneState("bar"));
+        setSending(false);
+        setError(null);
+        setAffinityPulse(null);
+      }
+    );
+  }, [setAwaitingDrinkOuting, enterSceneWithTitleCard, character.barDateLocationName]);
+
+  const enterProposalDateScene = useCallback(() => {
+    const name = character.proposalDateLocationName;
+    enterSceneWithTitleCard(
+      name ? { emoji: "💍", name } : null,
+      () => {
+        conversationEpochRef.current += 1;
+        setTeaDateSessionKey((k) => k + 1);
+        setAwaitingProposalDate(false);
+        setSceneState(proposalSceneState());
+        setSending(false);
+        setError(null);
+        setAffinityPulse(null);
+      }
+    );
+  }, [setAwaitingProposalDate, enterSceneWithTitleCard, character.proposalDateLocationName]);
+
+  const finishProposalDateAndAccept = useCallback(() => {
+    router.push(`/ending/${character.id}`);
+  }, [character.id, router]);
+
+  const finishProposalDateAndDecline = useCallback(() => {
+    conversationEpochRef.current += 1;
+    setSceneState(lineSceneState());
+    setTeaDateSessionKey((k) => k + 1);
+    window.setTimeout(() => setSceneDim(false), 380);
+  }, []);
 
   const interruptBarVenueWithoutProgress = useCallback(() => {
     // onBeforeLeave 経由で sceneDim=true になった後にここが呼ばれる
@@ -936,6 +1036,26 @@ export default function ChatExperience({
           transitionTimingFunction: sceneDim ? "ease-in" : "ease-out",
         }}
       />
+      {/* シーンタイトルカード（暗転の上に重ねて表示） */}
+      <div
+        aria-hidden
+        className="pointer-events-none fixed inset-0 z-[101] flex flex-col items-center justify-center transition-opacity duration-500"
+        style={{ opacity: sceneTitleVisible ? 1 : 0 }}
+      >
+        {sceneTitleCard ? (
+          <div className="text-center">
+            <p className="mb-2 text-3xl">{sceneTitleCard.emoji}</p>
+            <p className="text-lg font-light tracking-[0.3em] text-white/90 sm:text-xl">
+              {sceneTitleCard.name}
+            </p>
+            {sceneTitleCard.sub ? (
+              <p className="mt-2 text-xs tracking-[0.15em] text-white/50 sm:text-sm">
+                {sceneTitleCard.sub}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
       <UnlockToast
         message={unlockToast}
         onDismiss={() => setUnlockToast(null)}
@@ -1083,6 +1203,16 @@ export default function ChatExperience({
           data-chat-footer
           data-input-mode={mode}
         >
+          {awaitingProposalDate ? (
+            <button
+              type="button"
+              onClick={enterProposalDateScene}
+              disabled={isLoading || venueUiOpen}
+              className="flex w-full items-center justify-center rounded-xl border-2 border-rose-300/80 bg-gradient-to-b from-rose-50/95 to-white px-4 py-3.5 text-sm font-semibold tracking-wide text-rose-900 shadow-[0_1px_0_rgba(0,0,0,0.06)] transition hover:border-rose-400 hover:from-rose-50 hover:to-rose-50/80 disabled:opacity-50"
+            >
+              💍 デートに行く
+            </button>
+          ) : null}
           {awaitingTeaOuting ? (
             <button
               type="button"
@@ -1112,6 +1242,7 @@ export default function ChatExperience({
               pendingInviteAcceptance !== null ||
               awaitingTeaOuting ||
               awaitingDrinkOuting ||
+              awaitingProposalDate ||
               venueUiOpen
             }
           />
@@ -1190,6 +1321,19 @@ export default function ChatExperience({
           onAffinityDelta={adjustAffinityFromCafeDelta}
           onFinishedBarDate={finishBarDateAndReturnLine}
           onInterruptBarDate={interruptBarVenueWithoutProgress}
+          onBeforeLeave={() => setSceneDim(true)}
+        />
+      ) : null}
+      {sceneState.mode === "proposal" ? (
+        <ProposalDatePanel
+          key={teaDateSessionKey}
+          character={character}
+          affinity={affinity}
+          affinityPulse={affinityPulse}
+          introTemplateUserName={userProfile?.name ?? ""}
+          portraitSrc={teaDatePortraitSrc}
+          onAccept={finishProposalDateAndAccept}
+          onDecline={finishProposalDateAndDecline}
           onBeforeLeave={() => setSceneDim(true)}
         />
       ) : null}

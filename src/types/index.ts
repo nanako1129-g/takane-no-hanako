@@ -27,8 +27,14 @@ export type CharacterConfig = {
   images: CharacterImageSet;
   /** 好感度がこの値以上でプロポーズ発動の基準となる */
   proposalThreshold?: number;
-  /** プロポーズ本文（送信時は通常チャットレスポンスの代わりに表示） */
+  /** プロポーズ本文（ProposalDatePanel 内で自動表示） */
   proposalMessage?: string;
+  /** プロポーズデートへの誘い文（LINE 上でキャラが発言。未設定時はデフォルト） */
+  proposalDateInviteAssistantMessage?: string;
+  /** プロポーズデート場所に着いたときのイントロセリフ（未設定時はデフォルト） */
+  proposalDateIntroAssistantMessage?: string;
+  /** プロポーズデートの場所画像（public/ 配下のパス。未設定時はプレースホルダー） */
+  proposalDateSceneSrc?: string;
   /**
    * アシスタントの返答を表示するまでの見かけの遅延（ms）。両方あるときのみ有効。
    * 体感の「間」用。下限〜上限の間を好感度に応じて偏らせたランダムにする。
@@ -47,6 +53,12 @@ export type CharacterConfig = {
   teaInviteUserMessage?: string;
   /** 「飲みに誘う」ボタン押下時にユーザー発言として送る固定文 */
   drinkInviteUserMessage?: string;
+  /** 喫茶店シーン遷移時に表示するロケーション名（未設定時は「喫茶店」） */
+  teaDateLocationName?: string;
+  /** 居酒屋シーン遷移時に表示するロケーション名（未設定時は「居酒屋」） */
+  barDateLocationName?: string;
+  /** プロポーズデートシーン遷移時に表示するロケーション名（未設定時は非表示） */
+  proposalDateLocationName?: string;
   /** 喫茶店シーン中のチャットに付与する表面プロンプト（お茶デート運用の世界観） */
   teaDateScenePrompt?: string;
   /**
@@ -194,7 +206,7 @@ export type AnalysisResult = {
 };
 
 /** メイン画面上の対話フェーズ（LINE／店シーン）。`ChatMode.scene` の演出用とは別 */
-export type SceneMode = "line" | "cafe" | "bar";
+export type SceneMode = "line" | "cafe" | "bar" | "proposal";
 
 /** 店シーン内のターンレンジ（ユーザー1往復≒1増分）の既定値 */
 export const SCENE_TURN_LIMITS = {
@@ -225,6 +237,16 @@ export function venueSceneState(venue: "cafe" | "bar"): SceneState {
     turnsInScene: 0,
     minTurns: SCENE_TURN_LIMITS.minTurns,
     maxTurns: SCENE_TURN_LIMITS.maxTurns,
+  };
+}
+
+/** プロポーズデートシーン用 SceneState（ターン不要） */
+export function proposalSceneState(): SceneState {
+  return {
+    mode: "proposal",
+    turnsInScene: 0,
+    minTurns: 0,
+    maxTurns: 0,
   };
 }
 

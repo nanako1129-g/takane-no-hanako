@@ -17,11 +17,12 @@ const DEFAULT_TEA_DATE_CAFE_INTRO =
   "ここのコーヒー、香りがいいんですよ。\n" +
   "…来てくれて、ありがとうございます。";
 
-const CAFE_SOLO_HOLD_MS = 550;
-const CAFE_PAIR_CROSS_MS = 880;
-const CAFE_POST_AMBIENT_MS = 200;
-/** このターン数に達したらアップ写真へクロスフェード */
-const CAFE_PORTRAIT_SWITCH_TURNS = 2;
+/** 誰もいない喫茶店を見せる時間 */
+const CAFE_SOLO_HOLD_MS = 1100;
+/** 彼が入ってくる（wide → portrait）クロスフェード時間 */
+const CAFE_PAIR_CROSS_MS = 1000;
+/** クロスフェード後、UI 表示（挨拶文）を始めるまでの余韻 */
+const CAFE_POST_AMBIENT_MS = 350;
 
 function newMsgId(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -87,12 +88,12 @@ export function TeaDateCafePanel({
 
   const [entranceDone, setEntranceDone] = useState(false);
   /**
-   * ペア画像の切り替えは入場アニメではなくターン数で制御。
-   * - 0〜(CAFE_PORTRAIT_SWITCH_TURNS-1)ターン：広角写真
-   * - CAFE_PORTRAIT_SWITCH_TURNS以上：アップ写真にクロスフェード
+   * 入場タイマーで制御する「彼が到着した」フラグ。
+   * - false: 誰もいない広角写真を表示
+   * - true : アップ写真へクロスフェード（→ その後に挨拶文）
    */
-  const pairLayerVisible =
-    hasPairCafe && turnsInScene >= CAFE_PORTRAIT_SWITCH_TURNS;
+  const [characterArrived, setCharacterArrived] = useState(false);
+  const pairLayerVisible = hasPairCafe && characterArrived;
 
   const userSays = messages.filter((m) => m.role === "user").length;
   const showLeavePrompt =
@@ -119,8 +120,13 @@ export function TeaDateCafePanel({
       );
     };
 
-    // 入場アニメはワイド写真を表示した後そのまま完了（切り替えはターン数に委ねる）
-    after(CAFE_SOLO_HOLD_MS + CAFE_POST_AMBIENT_MS, () => setEntranceDone(true));
+    // 1. 誰もいない広角写真を見せる（CAFE_SOLO_HOLD_MS）
+    // 2. 彼が到着 → クロスフェード開始（CAFE_PAIR_CROSS_MS）
+    // 3. 余韻の後 UI 解放・挨拶文表示（CAFE_POST_AMBIENT_MS）
+    after(CAFE_SOLO_HOLD_MS, () => setCharacterArrived(true));
+    after(CAFE_SOLO_HOLD_MS + CAFE_PAIR_CROSS_MS + CAFE_POST_AMBIENT_MS, () =>
+      setEntranceDone(true)
+    );
 
     return () => {
       cancelled = true;

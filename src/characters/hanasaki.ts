@@ -128,6 +128,15 @@ export const hanasaki: CharacterConfig = {
   greeting: "こんばんは。今日は冷えますね。",
 
   proposalThreshold: 95,
+
+  proposalDateInviteAssistantMessage: `{userName}さん……少し、直接話したいことがあって。
+よかったら、今度二人でどこかで会えませんか。`,
+
+  proposalDateIntroAssistantMessage: `…来てくれてありがとうございます。
+こんな場所に呼んでしまって、緊張させてしまったかな。
+
+ちょっと落ち着いたら、話があるんです。`,
+
   proposalMessage: `{userName}さん……突然なんですが、結婚を前提に、僕から本気の話があります。
 
 ねえ、ちょっとだけ僕の話を聞いてくれる？
@@ -162,6 +171,10 @@ export const hanasaki: CharacterConfig = {
 
   teaInviteUserMessage: "今度、お茶でも飲みに行きませんか？",
   drinkInviteUserMessage: "今度、お酒でも飲みに行きませんか？",
+
+  teaDateLocationName: "喫茶 プリムローズ",
+  barDateLocationName: "Bar Polaris",
+  proposalDateLocationName: "夜の公園",
 
   teaAcceptanceSystemPrompt: `
 【特別指示：お茶のお誘いへの応答】
