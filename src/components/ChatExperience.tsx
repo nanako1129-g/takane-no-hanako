@@ -111,6 +111,7 @@ const DEFAULT_BAR_DATE_FAREWELL_LINE =
 const DEFAULT_BAR_LEAVE_AFFINITY_BONUS = 12;
 const OVERNIGHT_BLACKOUT_MS = 5000;
 const OVERNIGHT_MORNING_HERO_SRC = "/characters/hanasaki/morning_after.png";
+const OVERNIGHT_BLACKOUT_SE_SRC = "/audio/overnight-blackout.mp3";
 const POST_ENDING_OVERNIGHT_TRIGGER_RE =
   /(今夜.*泊まりたい|泊まりたい|お泊まり|旅行に行きたい|旅行行きたい|一緒に旅行)/;
 
@@ -505,7 +506,7 @@ export default function ChatExperience({
     const el = scrollRef.current;
     if (!el) return;
     el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
-  }, [messages, sending, showOvernightMorningHero]);
+  }, [messages, sending, showOvernightMorningHero, overnightMorningStage]);
 
   /** 好感度が閾値を超えた最初のタイミング（または復元済みの高好感度セーブ時）での一度きり独白 */
   useEffect(() => {
@@ -854,6 +855,15 @@ export default function ChatExperience({
               createdAt: Date.now(),
             },
           ]);
+          if (bgmEnabled) {
+            try {
+              const se = new Audio(OVERNIGHT_BLACKOUT_SE_SRC);
+              se.volume = 0.55;
+              void se.play();
+            } catch {
+              // ignore
+            }
+          }
           setSceneDim(true);
           await sleepMs(OVERNIGHT_BLACKOUT_MS);
           setSceneDim(false);
@@ -1600,7 +1610,7 @@ export default function ChatExperience({
               />
             ))
           )}
-          {showOvernightMorningHero ? (
+          {showOvernightMorningHero || overnightMorningStage !== "idle" ? (
             <div className="mx-auto w-full max-w-[380px] overflow-hidden rounded-2xl border border-rose-100 bg-white/70 p-2 shadow-sm">
               <div className="relative mx-auto h-[220px] w-full sm:h-[280px]">
                 <Image
