@@ -387,22 +387,33 @@ export function TeaDateCafePanel({
               className="relative isolate mx-auto h-[min(30vh,240px)] overflow-hidden rounded-2xl bg-stone-300/25 shadow-[0_8px_32px_-8px_rgba(0,0,0,0.28)] ring-1 ring-white/80 sm:h-[min(36vh,320px)]"
               style={{ maxWidth: "min(92vw, 420px)" }}
             >
-              {/* 縦長カットは object-contain で全体表示（顔〜テーブル・カップまで）。余白は背景で埋める */}
+              {/* 広角1枚目・2枚目・3枚目は排他表示（contain の余白に下層が見えないようにする） */}
               {hasPairCafe && emptyCafeSrc ? (
-                <Image
-                  src={emptyCafeSrc}
-                  alt="喫茶店"
-                  fill
-                  sizes="(max-width: 768px) 92vw, 420px"
-                  priority
-                  className="object-contain object-center"
-                />
+                <div
+                  className="absolute inset-0 z-0"
+                  style={{
+                    opacity:
+                      !pairLayerVisible && !extraLayerVisible ? 1 : 0,
+                    transitionProperty: "opacity",
+                    transitionDuration: `${CAFE_PAIR_CROSS_MS}ms`,
+                    transitionTimingFunction: "ease-out",
+                  }}
+                >
+                  <Image
+                    src={emptyCafeSrc}
+                    alt="喫茶店"
+                    fill
+                    sizes="(max-width: 768px) 92vw, 420px"
+                    priority
+                    className="object-contain object-center"
+                  />
+                </div>
               ) : null}
               {hasPairCafe && withCafeSrc ? (
                 <div
-                  className="absolute inset-0"
+                  className="absolute inset-0 z-[1]"
                   style={{
-                    opacity: pairLayerVisible && !extraLayerVisible ? 1 : pairLayerVisible ? 1 : 0,
+                    opacity: pairLayerVisible && !extraLayerVisible ? 1 : 0,
                     transitionProperty: "opacity",
                     transitionDuration: `${CAFE_PAIR_CROSS_MS}ms`,
                     transitionTimingFunction: "ease-out",
@@ -420,7 +431,7 @@ export function TeaDateCafePanel({
               ) : null}
               {extraCafeSrc ? (
                 <div
-                  className="absolute inset-0"
+                  className="absolute inset-0 z-[2]"
                   style={{
                     opacity: extraLayerVisible ? 1 : 0,
                     transitionProperty: "opacity",
