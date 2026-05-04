@@ -33,6 +33,8 @@ export type CharacterConfig = {
   proposalDateInviteAssistantMessage?: string;
   /** プロポーズデート場所に着いたときのイントロセリフ（未設定時はデフォルト） */
   proposalDateIntroAssistantMessage?: string;
+  /** ユーザーが1ターン返事をした後に表示される「歩きながら話す」シーンのセリフ（未設定時はデフォルト） */
+  proposalDateWalkAssistantMessage?: string;
   /** プロポーズデートの場所画像（public/ 配下のパス。未設定時はプレースホルダー） */
   proposalDateSceneSrc?: string;
   /**

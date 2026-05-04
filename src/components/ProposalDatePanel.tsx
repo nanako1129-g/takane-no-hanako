@@ -1,10 +1,11 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ChatBubble } from "@/components/ChatBubble";
 import { HeartIndicator } from "@/components/HeartIndicator";
 import { BgmToggleButton, useBgmGlobalEnabled } from "@/components/BgmPreferenceProvider";
+import { MessageInput } from "@/components/MessageInput";
 import { interpolateUserName } from "@/lib/promptInterpolate";
 import { useProposalMomentAmbient } from "@/hooks/useProposalAmbient";
 import type { AffinityPulse, Character, Message } from "@/types";
@@ -12,19 +13,26 @@ import type { AffinityPulse, Character, Message } from "@/types";
 const DEFAULT_PROPOSAL_DATE_INTRO =
   "…来てくれてありがとうございます。\n少し、話したいことがあって。";
 
-/** イントロ表示から提案文表示までの間（ms） */
-const PROPOSAL_AUTO_DELAY_MS = 2800;
+const DEFAULT_PROPOSAL_DATE_WALK =
+  "……少し、歩きながら話してもいいですか。\n実は、ずっと言えなかったことがあって。";
 
 /**
- * シーン画像のインデックス定義
- * 0: 誰もいない公園（入場直後）
- * 1: 花咲さん登場（entranceDone）
- * 2: 歩くシーン（イントロ表示後 2s）
- * 3: プロポーズ真剣（プロポーズ文表示時）
- * 4: ブレスレット（承諾直後）
- * 5: 笑顔（ブレスレット 2.5s 後 → エンディングへ）
+ * シーンフェーズ
+ * intro  : 入場〜イントロセリフ（input 表示・ユーザーが返事を待つ）
+ * walk   : ユーザーが1ターン送信後 → 歩くシーンのセリフ表示
+ * proposal: walkセリフ後 → プロポーズ文 + ボタン
+ * accepted: 承諾後のブレスレット→笑顔シーケンス
  */
-const SCENE_IDX = { empty: 0, arrival: 1, walk: 2, serious: 3, bracelet: 4, happy: 5 } as const;
+type Phase = "intro" | "walk" | "proposal" | "accepted";
+
+/**
+ * シーン画像インデックス
+ * 0: 誰もいない公園 / 1: 登場 / 2: 歩く / 3: プロポーズ真剣 / 4: ブレスレット / 5: 笑顔
+ */
+const SCENE = { empty: 0, arrival: 1, walk: 2, serious: 3, bracelet: 4, happy: 5 } as const;
+
+/** walkセリフ表示からプロポーズ文が出るまでの待機（ms） */
+const WALK_TO_PROPOSAL_MS = 3200;
 
 function newMsgId(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -59,19 +67,23 @@ export function ProposalDatePanel({
   const [proposalMsgId, setProposalMsgId] = useState<string | null>(null);
   const [leaving, setLeaving] = useState(false);
   const [entranceDone, setEntranceDone] = useState(false);
-  const [currentSceneIdx, setCurrentSceneIdx] = useState<number>(SCENE_IDX.empty);
+  const [phase, setPhase] = useState<Phase>("intro");
+  const [sceneIdx, setSceneIdx] = useState<number>(SCENE.empty);
+  const [typing, setTyping] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const introOnce = useRef(false);
 
-  const proposalPending = proposalMsgId !== null;
+  const bgmEnabled = useBgmGlobalEnabled();
 
-  // シーン画像リスト（proposalDateSceneSrcs 優先、なければ単一画像をフォールバック）
   const scenes: string[] = character.proposalDateSceneSrcs?.length
     ? character.proposalDateSceneSrcs
     : character.proposalDateSceneSrc?.trim()
     ? [character.proposalDateSceneSrc.trim()]
     : [];
-  const currentSceneSrc = scenes[currentSceneIdx] ?? scenes[scenes.length - 1] ?? null;
+  const currentSceneSrc = scenes[sceneIdx] ?? scenes[scenes.length - 1] ?? null;
+
+  const isProposalPhase = phase === "proposal" || phase === "accepted";
+  const inputDisabled = phase !== "intro" || typing;
 
   useProposalMomentAmbient(entranceDone && !leaving);
 
@@ -80,68 +92,106 @@ export function ProposalDatePanel({
     const el = scrollRef.current;
     if (!el) return;
     el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
-  }, [messages]);
+  }, [messages, typing]);
 
-  // 入場アニメ → シーン1（花咲さん登場）へ
+  // 入場アニメ → arrival 画像へ
   useEffect(() => {
     const id = window.setTimeout(() => {
       setEntranceDone(true);
-      setCurrentSceneIdx(SCENE_IDX.arrival);
+      setSceneIdx(SCENE.arrival);
     }, 600);
     return () => window.clearTimeout(id);
   }, []);
 
-  // イントロ → プロポーズを自動表示
+  // イントロセリフを自動表示（entranceDone 後に1回だけ）
   useEffect(() => {
     if (!entranceDone || introOnce.current) return;
     introOnce.current = true;
 
     const introSource =
-      character.proposalDateIntroAssistantMessage?.trim() ||
-      DEFAULT_PROPOSAL_DATE_INTRO;
+      character.proposalDateIntroAssistantMessage?.trim() || DEFAULT_PROPOSAL_DATE_INTRO;
     const introText = interpolateUserName(introSource, introTemplateUserName);
 
-    const introMsg: Message = {
-      id: newMsgId(),
-      role: "assistant",
-      content: introText,
-      createdAt: Date.now(),
-    };
-    setMessages([introMsg]);
-
-    // 2s後に歩くシーンへ切り替え
-    const walkId = window.setTimeout(() => setCurrentSceneIdx(SCENE_IDX.walk), 2000);
-
-    // PROPOSAL_AUTO_DELAY_MS 後にプロポーズ文を表示 → 真剣シーンへ
-    const pid = window.setTimeout(() => {
-      const proposalSource = character.proposalMessage?.trim() ?? "";
-      if (!proposalSource) return;
-      const proposalText = interpolateUserName(proposalSource, introTemplateUserName);
-      const aid = newMsgId();
-      const proposalMsg: Message = {
-        id: aid,
+    setMessages([
+      {
+        id: newMsgId(),
         role: "assistant",
-        content: proposalText,
+        content: introText,
         createdAt: Date.now(),
-        proposalChoices: true,
+      },
+    ]);
+  }, [entranceDone, character.proposalDateIntroAssistantMessage, introTemplateUserName]);
+
+  // ユーザーがメッセージを送信（intro フェーズのみ）
+  const handleSubmit = useCallback(
+    (text: string) => {
+      const trimmed = text.trim();
+      if (!trimmed || inputDisabled) return;
+
+      if (bgmEnabled) {
+        try {
+          const se = new Audio("/audio/send.mp3");
+          se.volume = 0.5;
+          void se.play();
+        } catch { /* ignore */ }
+      }
+
+      // ユーザーメッセージを追加
+      const userMsg: Message = {
+        id: newMsgId(),
+        role: "user",
+        content: trimmed,
+        createdAt: Date.now(),
       };
-      setMessages((prev) => [...prev, proposalMsg]);
-      setProposalMsgId(aid);
-      setCurrentSceneIdx(SCENE_IDX.serious);
-    }, PROPOSAL_AUTO_DELAY_MS);
+      setMessages((prev) => [...prev, userMsg]);
+      setTyping(true);
+      setSceneIdx(SCENE.walk);
 
-    return () => {
-      window.clearTimeout(walkId);
-      window.clearTimeout(pid);
-    };
-  }, [
-    entranceDone,
-    character.proposalDateIntroAssistantMessage,
-    character.proposalMessage,
-    introTemplateUserName,
-  ]);
+      // 少し間を置いてから walk セリフ表示
+      window.setTimeout(() => {
+        const walkSource =
+          character.proposalDateWalkAssistantMessage?.trim() || DEFAULT_PROPOSAL_DATE_WALK;
+        const walkText = interpolateUserName(walkSource, introTemplateUserName);
+        const walkMsg: Message = {
+          id: newMsgId(),
+          role: "assistant",
+          content: walkText,
+          createdAt: Date.now(),
+        };
+        setMessages((prev) => [...prev, walkMsg]);
+        setTyping(false);
+        setPhase("walk");
 
-  const bgmEnabled = useBgmGlobalEnabled();
+        // WALK_TO_PROPOSAL_MS 後にプロポーズ文を表示
+        window.setTimeout(() => {
+          const proposalSource = character.proposalMessage?.trim() ?? "";
+          if (!proposalSource) return;
+          const proposalText = interpolateUserName(proposalSource, introTemplateUserName);
+          const aid = newMsgId();
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: aid,
+              role: "assistant",
+              content: proposalText,
+              createdAt: Date.now(),
+              proposalChoices: true,
+            },
+          ]);
+          setProposalMsgId(aid);
+          setPhase("proposal");
+          setSceneIdx(SCENE.serious);
+        }, WALK_TO_PROPOSAL_MS);
+      }, 1600);
+    },
+    [
+      inputDisabled,
+      bgmEnabled,
+      character.proposalDateWalkAssistantMessage,
+      character.proposalMessage,
+      introTemplateUserName,
+    ]
+  );
 
   const handleAccept = () => {
     if (bgmEnabled) {
@@ -151,9 +201,10 @@ export function ProposalDatePanel({
         void se.play();
       } catch { /* ignore */ }
     }
-    // ブレスレット → 笑顔 → エンディングのシーケンス
-    setCurrentSceneIdx(SCENE_IDX.bracelet);
-    window.setTimeout(() => setCurrentSceneIdx(SCENE_IDX.happy), 2500);
+    setPhase("accepted");
+    // ブレスレット → 笑顔 → エンディング
+    setSceneIdx(SCENE.bracelet);
+    window.setTimeout(() => setSceneIdx(SCENE.happy), 2500);
     window.setTimeout(() => {
       onBeforeLeave?.();
       setLeaving(true);
@@ -227,7 +278,7 @@ export function ProposalDatePanel({
 
       {/* メインコンテンツ */}
       <div className="relative z-[1] flex min-h-0 flex-1 flex-col overflow-hidden">
-        {/* シーン画像（中央に配置） */}
+        {/* シーン画像 */}
         <div
           className={`shrink-0 px-3 pb-1.5 pt-2 transition-opacity duration-700 sm:px-4 sm:pb-2 sm:pt-3 ${
             entranceDone ? "opacity-100" : "opacity-40"
@@ -279,8 +330,8 @@ export function ProposalDatePanel({
               }
             />
           ))}
-          {/* プロポーズ文が出るまでの待機インジケータ */}
-          {entranceDone && !proposalPending && messages.length > 0 ? (
+          {/* タイピングインジケータ */}
+          {typing ? (
             <div className="flex items-center gap-1.5 px-2 text-xs text-slate-400">
               <span className="inline-flex gap-1">
                 <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-rose-300 [animation-delay:-0.2s]" />
@@ -290,22 +341,39 @@ export function ProposalDatePanel({
               <span>{character.displayName}が言葉を選んでいます…</span>
             </div>
           ) : null}
+          {/* walk→proposalの待機インジケータ */}
+          {phase === "walk" && !typing ? (
+            <div className="flex items-center gap-1.5 px-2 text-xs text-slate-400">
+              <span className="inline-flex gap-1">
+                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-rose-300 [animation-delay:-0.2s]" />
+                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-rose-300 [animation-delay:-0.1s]" />
+                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-rose-300" />
+              </span>
+              <span>{character.displayName}が続きを話そうとしています…</span>
+            </div>
+          ) : null}
         </div>
       </div>
 
-      {/* フッター（プロポーズ前は静かに待つ） */}
+      {/* フッター：intro フェーズは入力欄、それ以外は案内文 */}
       <footer
-        className={`relative z-10 shrink-0 border-t border-rose-200/30 bg-[#ede5dc]/95 px-3 py-3 text-center backdrop-blur-md transition-opacity duration-700 ${
+        className={`relative z-10 shrink-0 border-t border-rose-200/30 bg-[#ede5dc]/95 px-3 py-3 backdrop-blur-md transition-opacity duration-700 ${
           entranceDone ? "opacity-100" : "opacity-0"
         }`}
       >
-        {!proposalPending ? (
-          <p className="text-xs text-slate-400 italic">
-            …{character.displayName}が話し始めるのを待っています
+        {phase === "intro" ? (
+          <MessageInput
+            onSubmit={handleSubmit}
+            disabled={inputDisabled}
+            placeholder={`${character.displayName}に返事をする…`}
+          />
+        ) : isProposalPhase ? (
+          <p className="text-center text-xs text-rose-400/70 italic">
+            大切な返事をしてください
           </p>
         ) : (
-          <p className="text-xs text-rose-400/70 italic">
-            大切な返事をしてください
+          <p className="text-center text-xs text-slate-400 italic">
+            …{character.displayName}が続きを話しています
           </p>
         )}
       </footer>

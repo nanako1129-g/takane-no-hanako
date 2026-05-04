@@ -137,6 +137,12 @@ export const hanasaki: CharacterConfig = {
 
 ちょっと落ち着いたら、話があるんです。`,
 
+  proposalDateWalkAssistantMessage: `……夜景、きれいですね。
+こうして並んで歩くのは、初めてかな。
+
+実は……ずっと、言えなかったことがあって。
+もう少し、聞いてもらえますか。`,
+
   proposalMessage: `{userName}さん……突然なんですが、結婚を前提に、僕から本気の話があります。
 
 ねえ、ちょっとだけ僕の話を聞いてくれる？
