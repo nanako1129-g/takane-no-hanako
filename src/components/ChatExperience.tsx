@@ -196,6 +196,7 @@ export default function ChatExperience({
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const overnightBlackoutSeRef = useRef<HTMLAudioElement | null>(null);
 
   const [dateProgress, setDateProgress] =
     useState<DateProgress>(initialDateProgress);
@@ -507,6 +508,21 @@ export default function ChatExperience({
     if (!el) return;
     el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
   }, [messages, sending, showOvernightMorningHero, overnightMorningStage]);
+
+  useEffect(() => {
+    return () => {
+      const se = overnightBlackoutSeRef.current;
+      if (se) {
+        try {
+          se.pause();
+          se.currentTime = 0;
+        } catch {
+          // ignore
+        }
+      }
+      overnightBlackoutSeRef.current = null;
+    };
+  }, []);
 
   /** 好感度が閾値を超えた最初のタイミング（または復元済みの高好感度セーブ時）での一度きり独白 */
   useEffect(() => {
@@ -857,8 +873,15 @@ export default function ChatExperience({
           ]);
           if (bgmEnabled) {
             try {
+              const current = overnightBlackoutSeRef.current;
+              if (current) {
+                current.pause();
+                current.currentTime = 0;
+              }
               const se = new Audio(OVERNIGHT_BLACKOUT_SE_SRC);
               se.volume = 0.55;
+              se.loop = false;
+              overnightBlackoutSeRef.current = se;
               void se.play();
             } catch {
               // ignore
@@ -866,6 +889,16 @@ export default function ChatExperience({
           }
           setSceneDim(true);
           await sleepMs(OVERNIGHT_BLACKOUT_MS);
+          const current = overnightBlackoutSeRef.current;
+          if (current) {
+            try {
+              current.pause();
+              current.currentTime = 0;
+            } catch {
+              // ignore
+            }
+            overnightBlackoutSeRef.current = null;
+          }
           setSceneDim(false);
           setShowOvernightMorningHero(true);
 
@@ -1057,6 +1090,16 @@ export default function ChatExperience({
     setShowOvernightMorningHero(false);
     setOvernightMorningStage("idle");
     setCompanionActivityEpoch(0);
+    const current = overnightBlackoutSeRef.current;
+    if (current) {
+      try {
+        current.pause();
+        current.currentTime = 0;
+      } catch {
+        // ignore
+      }
+      overnightBlackoutSeRef.current = null;
+    }
 
     if (typeof window !== "undefined") {
       window.localStorage.removeItem(`${PROPOSAL_PREFIX}${character.id}`);
