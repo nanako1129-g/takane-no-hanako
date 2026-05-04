@@ -87,8 +87,7 @@ export function BarVenuePanel({
    */
   const overlayBgSrc = arrivalSrc || emptySrc;
   const hasPairBg = Boolean(overlayBgSrc && withSrc);
-  /** 無人フェーズ無し・乾杯パネルだけ（overlay 未定義） */
-  const hasSoloBarBg = Boolean(withSrc && !overlayBgSrc);
+  void Boolean(withSrc && !overlayBgSrc); // hasSoloBarBg: 新レイアウトでは画像コンテナ条件に統合済み
   const telopLine =
     character.barDateLocationTelop?.trim() || DEFAULT_BAR_LOCATION_TELOP;
 
@@ -169,7 +168,8 @@ export function BarVenuePanel({
       cancelled = true;
       timers.forEach(clearTimeout);
     };
-  }, [hasPairBg]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasPairBg, arrivalSrc]);
 
   useEffect(() => {
     if (!entranceDone || introOnce.current) return;
