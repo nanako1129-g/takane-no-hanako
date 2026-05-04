@@ -153,10 +153,18 @@ export function TeaDateCafePanel({
         createdAt: Date.now(),
       },
     ]);
+    if (bgmEnabled && Math.random() < 0.5) {
+      try {
+        const se = new Audio("/audio/cafe-reply.mp3");
+        se.volume = 0.4;
+        void se.play();
+      } catch { /* ignore */ }
+    }
   }, [
     entranceDone,
     character.teaDateIntroAssistantMessage,
     introTemplateUserName,
+    bgmEnabled,
   ]);
 
   useEffect(() => {
@@ -276,6 +284,14 @@ export function TeaDateCafePanel({
         };
 
         setMessages((prev) => [...prev, assistantMsg]);
+
+        if (bgmEnabled && Math.random() < 0.5) {
+          try {
+            const se = new Audio("/audio/cafe-reply.mp3");
+            se.volume = 0.4;
+            void se.play();
+          } catch { /* ignore */ }
+        }
 
         const delta =
           typeof data.affinityChange === "number" &&
