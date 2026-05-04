@@ -384,10 +384,10 @@ export function TeaDateCafePanel({
         {showSceneHero ? (
           <div className={`shrink-0 px-3 pb-1.5 pt-2 transition-opacity duration-500 sm:px-4 sm:pb-2 sm:pt-3 ${imageVisible ? "opacity-100" : "opacity-0"}`}>
             <div
-              className="relative isolate mx-auto h-[min(26vh,200px)] overflow-hidden rounded-2xl shadow-[0_8px_32px_-8px_rgba(0,0,0,0.28)] ring-1 ring-white/80 sm:h-[min(36vh,320px)]"
+              className="relative isolate mx-auto h-[min(30vh,240px)] overflow-hidden rounded-2xl bg-stone-300/25 shadow-[0_8px_32px_-8px_rgba(0,0,0,0.28)] ring-1 ring-white/80 sm:h-[min(36vh,320px)]"
               style={{ maxWidth: "min(92vw, 420px)" }}
             >
-              {/* 1枚目：広い喫茶店（横長）*/}
+              {/* 縦長カットは object-contain で全体表示（顔〜テーブル・カップまで）。余白は背景で埋める */}
               {hasPairCafe && emptyCafeSrc ? (
                 <Image
                   src={emptyCafeSrc}
@@ -395,10 +395,9 @@ export function TeaDateCafePanel({
                   fill
                   sizes="(max-width: 768px) 92vw, 420px"
                   priority
-                  className="object-cover object-center"
+                  className="object-contain object-center"
                 />
               ) : null}
-              {/* 2枚目：彼がいる（縦長・クロスフェード）*/}
               {hasPairCafe && withCafeSrc ? (
                 <div
                   className="absolute inset-0"
@@ -415,11 +414,10 @@ export function TeaDateCafePanel({
                     fill
                     sizes="(max-width: 768px) 92vw, 420px"
                     priority={pairLayerVisible}
-                    className="object-cover object-top"
+                    className="object-contain object-center"
                   />
                 </div>
               ) : null}
-              {/* 3枚目：3ターン目以降に切り替わる追加カット */}
               {extraCafeSrc ? (
                 <div
                   className="absolute inset-0"
@@ -436,7 +434,7 @@ export function TeaDateCafePanel({
                     fill
                     sizes="(max-width: 768px) 92vw, 420px"
                     priority={extraLayerVisible}
-                    className="object-cover object-top"
+                    className="object-contain object-center"
                   />
                 </div>
               ) : null}
@@ -447,7 +445,7 @@ export function TeaDateCafePanel({
                   fill
                   sizes="(max-width: 768px) 92vw, 420px"
                   priority
-                  className="object-cover object-center"
+                  className="object-contain object-center"
                 />
               ) : null}
             </div>

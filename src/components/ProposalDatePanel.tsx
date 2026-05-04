@@ -121,7 +121,6 @@ export function ProposalDatePanel({
   ];
   const currentSceneSrc = scenes[sceneIdx] ?? scenes[scenes.length - 1] ?? null;
 
-  const isProposalPhase = phase === "proposal1" || phase === "proposal";
   const inputDisabled = (phase !== "intro" && phase !== "bracelet") || typing;
 
   // happy_wait フェーズ（エンディング曲）では環境BGMを止める
@@ -686,7 +685,7 @@ export function ProposalDatePanel({
             disabled={inputDisabled}
             placeholder="気持ちを伝える…"
           />
-        ) : phase === "happy_scene" || phase === "happy_wait" ? (
+        ) : phase === "happy_scene" ? (
           <p className="text-center text-xs text-rose-300/70 italic">
             ✨
           </p>
