@@ -202,7 +202,14 @@ export function BarVenuePanel({
         createdAt: Date.now(),
       },
     ]);
-  }, [entranceDone, character.barIntroAssistantMessage, introTemplateUserName]);
+    if (bgmEnabled) {
+      try {
+        const se = new Audio("/audio/bar-reply.mp3");
+        se.volume = 0.45;
+        void se.play();
+      } catch { /* ignore */ }
+    }
+  }, [entranceDone, character.barIntroAssistantMessage, introTemplateUserName, bgmEnabled]);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -324,6 +331,14 @@ export function BarVenuePanel({
         };
 
         setMessages((prev) => [...prev, assistantMsg]);
+
+        if (bgmEnabled) {
+          try {
+            const se = new Audio("/audio/bar-reply.mp3");
+            se.volume = 0.45;
+            void se.play();
+          } catch { /* ignore */ }
+        }
 
         const delta =
           typeof data.affinityChange === "number" &&
