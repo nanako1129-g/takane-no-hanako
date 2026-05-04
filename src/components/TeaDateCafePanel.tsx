@@ -350,9 +350,10 @@ export function TeaDateCafePanel({
       <div className="relative z-[1] flex min-h-0 flex-1 flex-col overflow-hidden">
         {/* 喫茶店の1枚絵（中央に配置） */}
         {showSceneHero ? (
-          <div className={`shrink-0 px-4 pb-2 pt-3 transition-opacity duration-700 ${entranceDone ? "opacity-100" : "opacity-60"}`}>
-            <div className="relative isolate mx-auto overflow-hidden rounded-2xl shadow-[0_8px_32px_-8px_rgba(0,0,0,0.28)] ring-1 ring-white/80"
-              style={{ maxWidth: "min(92vw, 420px)", height: "min(42vh, 400px)" }}
+          <div className={`shrink-0 px-3 pb-1.5 pt-2 transition-opacity duration-700 sm:px-4 sm:pb-2 sm:pt-3 ${entranceDone ? "opacity-100" : "opacity-60"}`}>
+            <div
+              className="relative isolate mx-auto h-[min(26vh,200px)] overflow-hidden rounded-2xl shadow-[0_8px_32px_-8px_rgba(0,0,0,0.28)] ring-1 ring-white/80 sm:h-[min(36vh,320px)]"
+              style={{ maxWidth: "min(92vw, 420px)" }}
             >
               {/* 1枚目：広い喫茶店（横長）*/}
               {hasPairCafe && emptyCafeSrc ? (

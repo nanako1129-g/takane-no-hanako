@@ -401,10 +401,10 @@ export function BarVenuePanel({
       <div className="relative z-[1] flex min-h-0 flex-1 flex-col overflow-hidden">
         {/* バーの1枚絵（中央に配置） */}
         {heroImageSrc ? (
-          <div className={`shrink-0 px-4 pb-2 pt-3 transition-opacity duration-700 ${entranceDone ? "opacity-100" : "opacity-40"}`}>
+          <div className={`shrink-0 px-3 pb-1.5 pt-2 transition-opacity duration-700 sm:px-4 sm:pb-2 sm:pt-3 ${entranceDone ? "opacity-100" : "opacity-40"}`}>
             <div
-              className="relative isolate mx-auto overflow-hidden rounded-2xl shadow-[0_8px_40px_-8px_rgba(0,0,0,0.7)] ring-1 ring-rose-200/20"
-              style={{ maxWidth: "min(92vw, 420px)", height: "min(42vh, 400px)" }}
+              className="relative isolate mx-auto h-[min(26vh,200px)] overflow-hidden rounded-2xl shadow-[0_8px_40px_-8px_rgba(0,0,0,0.7)] ring-1 ring-rose-200/20 sm:h-[min(36vh,320px)]"
+              style={{ maxWidth: "min(92vw, 420px)" }}
             >
               {/* ベース画像（bar_with_him / bar_empty） */}
               {(hasPairBg || hasSoloBarBg) && withSrc ? (

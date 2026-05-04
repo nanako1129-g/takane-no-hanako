@@ -180,13 +180,13 @@ export function ProposalDatePanel({
         {/* シーン画像（中央に配置） */}
         {sceneSrc ? (
           <div
-            className={`shrink-0 px-4 pb-2 pt-3 transition-opacity duration-700 ${
+            className={`shrink-0 px-3 pb-1.5 pt-2 transition-opacity duration-700 sm:px-4 sm:pb-2 sm:pt-3 ${
               entranceDone ? "opacity-100" : "opacity-40"
             }`}
           >
             <div
-              className="relative isolate mx-auto overflow-hidden rounded-2xl shadow-[0_8px_32px_-8px_rgba(0,0,0,0.22)] ring-1 ring-rose-200/50"
-              style={{ maxWidth: "min(92vw, 420px)", height: "min(42vh, 400px)" }}
+              className="relative isolate mx-auto h-[min(26vh,200px)] overflow-hidden rounded-2xl shadow-[0_8px_32px_-8px_rgba(0,0,0,0.22)] ring-1 ring-rose-200/50 sm:h-[min(36vh,320px)]"
+              style={{ maxWidth: "min(92vw, 420px)" }}
             >
               <Image
                 src={sceneSrc}
@@ -202,13 +202,13 @@ export function ProposalDatePanel({
         ) : (
           /* 画像未設定のプレースホルダー */
           <div
-            className={`shrink-0 px-4 pb-2 pt-3 transition-opacity duration-700 ${
+            className={`shrink-0 px-3 pb-1.5 pt-2 transition-opacity duration-700 sm:px-4 sm:pb-2 sm:pt-3 ${
               entranceDone ? "opacity-100" : "opacity-40"
             }`}
           >
             <div
-              className="relative isolate mx-auto flex items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br from-rose-50 to-amber-50 shadow-[0_8px_32px_-8px_rgba(0,0,0,0.12)] ring-1 ring-rose-200/50"
-              style={{ maxWidth: "min(92vw, 420px)", height: "min(42vh, 400px)" }}
+              className="relative isolate mx-auto flex h-[min(26vh,200px)] items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br from-rose-50 to-amber-50 shadow-[0_8px_32px_-8px_rgba(0,0,0,0.12)] ring-1 ring-rose-200/50 sm:h-[min(36vh,320px)]"
+              style={{ maxWidth: "min(92vw, 420px)" }}
             >
               <p className="text-4xl opacity-30">💍</p>
             </div>
