@@ -23,8 +23,6 @@ const CAFE_IMAGE_SHOW_MS = 200;
 const CAFE_UI_SHOW_MS = 600;
 /** 広角→アップに切り替えるターン数 */
 const CAFE_PORTRAIT_SWITCH_TURNS = 2;
-/** 広角→アップのクロスフェード時間 */
-const CAFE_PAIR_CROSS_MS = 1000;
 
 function newMsgId(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -387,18 +385,9 @@ export function TeaDateCafePanel({
               className="relative isolate mx-auto h-[min(30vh,240px)] overflow-hidden rounded-2xl bg-stone-300/25 shadow-[0_8px_32px_-8px_rgba(0,0,0,0.28)] ring-1 ring-white/80 sm:h-[min(36vh,320px)]"
               style={{ maxWidth: "min(92vw, 420px)" }}
             >
-              {/* 広角1枚目・2枚目・3枚目は排他表示（contain の余白に下層が見えないようにする） */}
-              {hasPairCafe && emptyCafeSrc ? (
-                <div
-                  className="absolute inset-0 z-0"
-                  style={{
-                    opacity:
-                      !pairLayerVisible && !extraLayerVisible ? 1 : 0,
-                    transitionProperty: "opacity",
-                    transitionDuration: `${CAFE_PAIR_CROSS_MS}ms`,
-                    transitionTimingFunction: "ease-out",
-                  }}
-                >
+              {/* 広角 / ふたり / 追加カットは同時に1枚だけマウント（opacity クロスフェードだと半透明で二重に見えるため） */}
+              {hasPairCafe && emptyCafeSrc && !pairLayerVisible && !extraLayerVisible ? (
+                <div className="absolute inset-0 z-0">
                   <Image
                     src={emptyCafeSrc}
                     alt="喫茶店"
@@ -409,42 +398,26 @@ export function TeaDateCafePanel({
                   />
                 </div>
               ) : null}
-              {hasPairCafe && withCafeSrc ? (
-                <div
-                  className="absolute inset-0 z-[1]"
-                  style={{
-                    opacity: pairLayerVisible && !extraLayerVisible ? 1 : 0,
-                    transitionProperty: "opacity",
-                    transitionDuration: `${CAFE_PAIR_CROSS_MS}ms`,
-                    transitionTimingFunction: "ease-out",
-                  }}
-                >
+              {hasPairCafe && withCafeSrc && pairLayerVisible && !extraLayerVisible ? (
+                <div className="absolute inset-0 z-[1] animate-fade-portrait">
                   <Image
                     src={withCafeSrc}
                     alt="花咲さんと喫茶店"
                     fill
                     sizes="(max-width: 768px) 92vw, 420px"
-                    priority={pairLayerVisible}
+                    priority
                     className="object-contain object-center"
                   />
                 </div>
               ) : null}
-              {extraCafeSrc ? (
-                <div
-                  className="absolute inset-0 z-[2]"
-                  style={{
-                    opacity: extraLayerVisible ? 1 : 0,
-                    transitionProperty: "opacity",
-                    transitionDuration: `${CAFE_PAIR_CROSS_MS}ms`,
-                    transitionTimingFunction: "ease-out",
-                  }}
-                >
+              {extraCafeSrc && extraLayerVisible ? (
+                <div className="absolute inset-0 z-[2] animate-fade-portrait">
                   <Image
                     src={extraCafeSrc}
                     alt="花咲さんと喫茶店"
                     fill
                     sizes="(max-width: 768px) 92vw, 420px"
-                    priority={extraLayerVisible}
+                    priority
                     className="object-contain object-center"
                   />
                 </div>
