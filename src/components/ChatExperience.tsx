@@ -164,6 +164,16 @@ export default function ChatExperience({
     } catch { /* ignore */ }
   }, [affinityPulse, bgmEnabled]);
 
+  /** 好感度下降時に効果音を鳴らす */
+  useEffect(() => {
+    if (!affinityPulse || affinityPulse.delta >= 0 || !bgmEnabled) return;
+    try {
+      const se = new Audio("/audio/affinity-down.mp3");
+      se.volume = 0.5;
+      void se.play();
+    } catch { /* ignore */ }
+  }, [affinityPulse, bgmEnabled]);
+
   /** デート解禁時に成功音を鳴らす */
   useEffect(() => {
     if (!unlockToast || !bgmEnabled) return;
