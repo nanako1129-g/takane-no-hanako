@@ -27,8 +27,10 @@ export type CharacterConfig = {
   images: CharacterImageSet;
   /** 好感度がこの値以上でプロポーズ発動の基準となる */
   proposalThreshold?: number;
-  /** プロポーズ本文（ProposalDatePanel 内で自動表示） */
+  /** プロポーズ本文・前半（「・・・」ボタンで区切る） */
   proposalMessage?: string;
+  /** プロポーズ本文・後半（承諾/断りボタン付き） */
+  proposalMessage2?: string;
   /** プロポーズデートへの誘い文（LINE 上でキャラが発言。未設定時はデフォルト） */
   proposalDateInviteAssistantMessage?: string;
   /** プロポーズデート場所に着いたときのイントロセリフ（未設定時はデフォルト） */
@@ -43,6 +45,12 @@ export type CharacterConfig = {
    * 設定時は proposalDateSceneSrc より優先。
    */
   proposalDateSceneSrcs?: string[];
+  /** エンディング画面のメイン画像（未設定時は happy 立ち絵） */
+  endingMainImageSrc?: string;
+  /** クリア後TOPページの立ち絵（post_ending フラグがある場合に表示） */
+  clearedPortraitSrc?: string;
+  /** エンディング画面の2枚目画像（設定時は横並び表示） */
+  endingSubImageSrc?: string;
   /**
    * アシスタントの返答を表示するまでの見かけの遅延（ms）。両方あるときのみ有効。
    * 体感の「間」用。下限〜上限の間を好感度に応じて偏らせたランダムにする。
@@ -92,6 +100,8 @@ export type CharacterConfig = {
   teaDateEmptyBackgroundSrc?: string;
   /** 喫茶店・着席後（例: cafe_with_him.png） */
   teaDateWithCharacterBackgroundSrc?: string;
+  /** 喫茶店・3ターン目以降に切り替わる追加カット（例: cafe_3.png） */
+  teaDateExtraBackgroundSrc?: string;
   /** 喫茶店での立ち絵。未指定はメインゲームと同一ロジック */
   teaDatePortraitSrc?: string;
   /** true のとき画面上部の立ち絵ストリップを隠す（複合背景で人物が被る場合など）。吹き出しアバターには teaDatePortraitSrc がそのまま使われる */

@@ -108,6 +108,7 @@ export default function EndingPage({
 
   const [showGallery, setShowGallery] = useState(false);
   const [galleryIndex, setGalleryIndex] = useState(0);
+  const [pageVisible, setPageVisible] = useState(false);
   const scenePhotos = buildScenePhotos(character);
 
   useEffect(() => {
@@ -117,6 +118,12 @@ export default function EndingPage({
     setMessages(s.messages);
     setStatsReady(true);
   }, [character.id]);
+
+  // マウント後に白オーバーレイをフェードアウト
+  useEffect(() => {
+    const id = window.setTimeout(() => setPageVisible(true), 50);
+    return () => window.clearTimeout(id);
+  }, []);
 
   useEffect(() => {
     if (showLogs) {
@@ -165,7 +172,16 @@ export default function EndingPage({
   }, [character.id, router]);
 
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-lg flex-col items-center justify-center gap-8 bg-gradient-to-b from-white via-rose-50/40 to-white px-6 py-12 text-center">
+    <main className="relative mx-auto flex min-h-dvh w-full max-w-lg flex-col items-center justify-center gap-8 bg-gradient-to-b from-white via-rose-50/40 to-white px-6 py-12 text-center">
+      {/* 遷移時の白フェードインオーバーレイ */}
+      <div
+        aria-hidden
+        className="pointer-events-none fixed inset-0 z-50 bg-white"
+        style={{
+          opacity: pageVisible ? 0 : 1,
+          transition: pageVisible ? "opacity 900ms ease-out" : "none",
+        }}
+      />
       <div
         className={`flex w-full flex-col items-center gap-6 ${statsReady ? "animate-fade-ending" : "opacity-0"}`}
       >
@@ -185,13 +201,13 @@ export default function EndingPage({
           </p>
         </div>
 
-        <div className="relative aspect-[9/16] w-full max-w-[220px] overflow-hidden rounded-2xl shadow-md ring-1 ring-rose-100">
+        <div className="relative w-full max-w-[320px] overflow-hidden rounded-2xl shadow-md ring-1 ring-rose-100" style={{ aspectRatio: "3/4" }}>
           <Image
-            src={character.images.happy}
-            alt={`${character.name}（表情）`}
+            src={character.endingMainImageSrc ?? character.images.happy}
+            alt={`${character.name}（エンディング）`}
             fill
-            className="object-cover"
-            sizes="220px"
+            className="object-cover object-top"
+            sizes="320px"
             priority
           />
         </div>

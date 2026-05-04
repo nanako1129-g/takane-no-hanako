@@ -1,10 +1,13 @@
 "use client";
 
+export type DemoScene = "tea" | "bar" | "proposal";
+
 type Props = {
   affinity: number;
   initialAffinity: number;
   proposalThreshold?: number;
   onSetAffinity: (value: number) => void;
+  onJumpToScene?: (scene: DemoScene) => void;
 };
 
 function clamp(n: number): number {
@@ -18,6 +21,7 @@ export function AffinityDemoToolbar({
   initialAffinity,
   proposalThreshold = 95,
   onSetAffinity,
+  onJumpToScene,
 }: Props) {
   const presets = Array.from(
     new Set([
@@ -62,6 +66,27 @@ export function AffinityDemoToolbar({
           </button>
         ))}
       </div>
+      {onJumpToScene && (
+        <div className="flex flex-wrap gap-1 border-l border-amber-300/60 pl-3">
+          <span className="self-center text-amber-700/70">直行▶</span>
+          {(
+            [
+              { scene: "tea", label: "☕ 喫茶店" },
+              { scene: "bar", label: "🍶 居酒屋" },
+              { scene: "proposal", label: "💍 プロポーズ" },
+            ] as { scene: DemoScene; label: string }[]
+          ).map(({ scene, label }) => (
+            <button
+              key={scene}
+              type="button"
+              onClick={() => onJumpToScene(scene)}
+              className="rounded-full border border-rose-400/70 bg-rose-50/80 px-2 py-0.5 transition hover:bg-rose-100/80"
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

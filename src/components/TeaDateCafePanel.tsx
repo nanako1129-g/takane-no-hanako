@@ -84,6 +84,7 @@ export function TeaDateCafePanel({
   const legacyBgSrc = character.teaDateBackgroundSrc?.trim();
   const emptyCafeSrc = character.teaDateEmptyBackgroundSrc?.trim();
   const withCafeSrc = character.teaDateWithCharacterBackgroundSrc?.trim();
+  const extraCafeSrc = character.teaDateExtraBackgroundSrc?.trim();
   const hasPairCafe = Boolean(emptyCafeSrc && withCafeSrc);
   const resolvedSingleBg = !hasPairCafe ? legacyBgSrc : null;
   const showSceneHero = hasPairCafe || Boolean(resolvedSingleBg);
@@ -97,6 +98,7 @@ export function TeaDateCafePanel({
    */
   const characterArrived = hasPairCafe && turnsInScene >= CAFE_PORTRAIT_SWITCH_TURNS;
   const pairLayerVisible = characterArrived;
+  const extraLayerVisible = Boolean(extraCafeSrc) && turnsInScene >= CAFE_PORTRAIT_SWITCH_TURNS + 1;
 
   const userSays = messages.filter((m) => m.role === "user").length;
   const showLeavePrompt =
@@ -398,7 +400,7 @@ export function TeaDateCafePanel({
                 <div
                   className="absolute inset-0"
                   style={{
-                    opacity: pairLayerVisible ? 1 : 0,
+                    opacity: pairLayerVisible && !extraLayerVisible ? 1 : pairLayerVisible ? 1 : 0,
                     transitionProperty: "opacity",
                     transitionDuration: `${CAFE_PAIR_CROSS_MS}ms`,
                     transitionTimingFunction: "ease-out",
@@ -410,6 +412,27 @@ export function TeaDateCafePanel({
                     fill
                     sizes="(max-width: 768px) 92vw, 420px"
                     priority={pairLayerVisible}
+                    className="object-cover object-top"
+                  />
+                </div>
+              ) : null}
+              {/* 3枚目：3ターン目以降に切り替わる追加カット */}
+              {extraCafeSrc ? (
+                <div
+                  className="absolute inset-0"
+                  style={{
+                    opacity: extraLayerVisible ? 1 : 0,
+                    transitionProperty: "opacity",
+                    transitionDuration: `${CAFE_PAIR_CROSS_MS}ms`,
+                    transitionTimingFunction: "ease-out",
+                  }}
+                >
+                  <Image
+                    src={extraCafeSrc}
+                    alt="花咲さんと喫茶店"
+                    fill
+                    sizes="(max-width: 768px) 92vw, 420px"
+                    priority={extraLayerVisible}
                     className="object-cover object-top"
                   />
                 </div>

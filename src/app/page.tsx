@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { UserNameModal } from "@/components/UserNameModal";
 import { usePlayerProfileState } from "@/components/PlayerNameProvider";
 import { characterList, hanasaki } from "@/characters";
@@ -13,6 +13,14 @@ export default function HomePage() {
   const { profile: userProfile, saveProfile } = usePlayerProfileState();
   const [isNameModalOpen, setIsNameModalOpen] = useState(false);
   const [pendingCharId, setPendingCharId] = useState<string | null>(null);
+  const [hanasakiCleared, setHanasakiCleared] = useState(false);
+
+  useEffect(() => {
+    try {
+      const flag = window.localStorage.getItem(`post_ending_${hanasaki.id}`);
+      setHanasakiCleared(flag === "true");
+    } catch { /* ignore */ }
+  }, []);
 
   const handleSelectCharacter = (charId: string) => {
     if (!userProfile) {
@@ -68,7 +76,11 @@ export default function HomePage() {
 
       <div className="relative mx-auto aspect-[3/4] w-full max-w-[280px] overflow-hidden rounded-3xl bg-gradient-to-br from-rose-100 via-white to-pink-100 shadow-md ring-1 ring-rose-100">
         <Image
-          src={hanasaki.images.happy}
+          src={
+            hanasakiCleared && hanasaki.clearedPortraitSrc
+              ? hanasaki.clearedPortraitSrc
+              : hanasaki.images.happy
+          }
           alt={hanasaki.name}
           fill
           sizes="(max-width: 768px) 80vw, 280px"
@@ -139,9 +151,15 @@ export default function HomePage() {
           <li>会話を重ねて好感度を育てよう</li>
           <li>「分析する」で自分の会話を5軸スコアで振り返り</li>
         </ol>
+        <p className="mt-3 rounded-xl bg-rose-50 px-3 py-2 text-rose-500">
+          💡 好感度が上がると、お茶・お酒・特別なデートへ誘えるようになるよ。エンディングを目指してみて！
+        </p>
       </section>
 
       <footer className="mt-auto pt-8 text-center text-[11px] text-slate-400">
+        <p className="mb-1 text-[13px] font-semibold italic tracking-widest text-rose-300">
+          presented by meina
+        </p>
         Powered by Gemini ・ for fun & practice
       </footer>
 

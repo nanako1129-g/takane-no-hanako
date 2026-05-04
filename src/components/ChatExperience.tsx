@@ -14,7 +14,7 @@ import {
 import { ChatBubble } from "@/components/ChatBubble";
 import { CharacterPortrait } from "@/components/CharacterPortrait";
 import { DateInviteButtons } from "@/components/DateInviteButtons";
-import { AffinityDemoToolbar } from "@/components/AffinityDemoToolbar";
+import { AffinityDemoToolbar, type DemoScene } from "@/components/AffinityDemoToolbar";
 import {
   BgmToggleButton,
   useBgmGlobalEnabled,
@@ -141,6 +141,8 @@ export default function ChatExperience({
 
   /** シーン遷移時の暗転オーバーレイ制御 */
   const [sceneDim, setSceneDim] = useState(false);
+  /** エンディングページへの遷移前フェードアウト */
+  const [fadingToEnding, setFadingToEnding] = useState(false);
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [historyHydrated, setHistoryHydrated] = useState(false);
@@ -965,8 +967,66 @@ export default function ChatExperience({
     );
   }, [setAwaitingProposalDate, enterSceneWithTitleCard, character.proposalDateLocationName]);
 
+  /** 開発デモ用：シーンに直行（teaCount/drinkCount を強制的に満たしてからシーンへ） */
+  const handleDemoJump = useCallback(
+    (scene: DemoScene) => {
+      if (scene === "tea") {
+        const th = character.teaInviteThreshold ?? 75;
+        const newAff = Math.max(affinity, th);
+        setAffinity(newAff);
+        setDateProgress((prev) => {
+          const next = evaluateUnlocks(newAff, prev, character);
+          return { ...next, unlockedTea: true };
+        });
+        enterTeaDateCafeScene();
+      } else if (scene === "bar") {
+        const reqTea = character.requiredTeaCountForDrink ?? 2;
+        const drinkTh = character.drinkInviteThreshold ?? 85;
+        const newAff = Math.max(affinity, drinkTh);
+        setAffinity(newAff);
+        setDateProgress((prev) => {
+          const next = evaluateUnlocks(newAff, prev, character);
+          return {
+            ...next,
+            unlockedTea: true,
+            unlockedDrink: true,
+            teaCount: Math.max(next.teaCount, reqTea),
+          };
+        });
+        enterBarVenueScene();
+      } else {
+        const propTh = typeof character.proposalThreshold === "number"
+          ? character.proposalThreshold
+          : 95;
+        const reqTea = character.requiredTeaCountForDrink ?? 2;
+        const newAff = Math.max(affinity, propTh);
+        setAffinity(newAff);
+        setDateProgress((prev) => {
+          const next = evaluateUnlocks(newAff, prev, character);
+          return {
+            ...next,
+            unlockedTea: true,
+            unlockedDrink: true,
+            teaCount: Math.max(next.teaCount, reqTea),
+            drinkCount: Math.max(next.drinkCount, 1),
+          };
+        });
+        enterProposalDateScene();
+      }
+    },
+    [
+      affinity,
+      character,
+      setAffinity,
+      enterTeaDateCafeScene,
+      enterBarVenueScene,
+      enterProposalDateScene,
+    ]
+  );
+
   const finishProposalDateAndAccept = useCallback(() => {
-    router.push(`/ending/${character.id}`);
+    setFadingToEnding(true);
+    window.setTimeout(() => router.push(`/ending/${character.id}`), 900);
   }, [character.id, router]);
 
   const finishProposalDateAndDecline = useCallback(() => {
@@ -1109,6 +1169,16 @@ export default function ChatExperience({
           transitionTimingFunction: sceneDim ? "ease-in" : "ease-out",
         }}
       />
+      {/* エンディング遷移時の白フェードオーバーレイ */}
+      <div
+        aria-hidden
+        className="pointer-events-none fixed inset-0 z-[120] bg-white transition-opacity"
+        style={{
+          opacity: fadingToEnding ? 1 : 0,
+          transitionDuration: fadingToEnding ? "800ms" : "0ms",
+          transitionTimingFunction: "ease-in-out",
+        }}
+      />
       {/* シーンタイトルカード（暗転の上に重ねて表示） */}
       <div
         aria-hidden
@@ -1222,6 +1292,7 @@ export default function ChatExperience({
                   : undefined
               }
               onSetAffinity={applyDemoAffinity}
+              onJumpToScene={handleDemoJump}
             />
           ) : null}
         </header>

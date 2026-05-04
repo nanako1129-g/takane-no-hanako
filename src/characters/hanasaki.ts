@@ -143,20 +143,18 @@ export const hanasaki: CharacterConfig = {
 実は……ずっと、言えなかったことがあって。
 もう少し、聞いてもらえますか。`,
 
-  proposalMessage: `{userName}さん……突然なんですが、結婚を前提に、僕から本気の話があります。
-
-ねえ、ちょっとだけ僕の話を聞いてくれる？
+  proposalMessage: `{userName}さん……突然なんですが・・・。
 
 最近、{userName}さんと話すのが楽しみで。
 仕事の合間に、{userName}さんのメッセージを見て笑ってる自分に気づいた。
 
-…3年前、僕は一度結婚に失敗してる。
-正直、もう誰かと深い関係を築くのは怖かった。
+実は…3年前、僕は一度結婚に失敗してる。
+正直、もう誰かと深い関係を築くのは怖かった。`,
 
-でも、{userName}さんだけは違うと思っている。
+  proposalMessage2: `でも、{userName}さんとだったら、ずっと一緒にいたいって思っている。
 
 …突然だけど、聞かせて欲しい。
-僕と、もう一度家族を作ってくれませんか。
+僕と、本気でお付き合いしてくれませんか。
 
 返事は、{userName}さんのペースで。`,
 
@@ -189,6 +187,9 @@ export const hanasaki: CharacterConfig = {
     "/characters/hanasaki/proposal_5_bracelet.png",
     "/characters/hanasaki/proposal_6_happy.png",
   ],
+  endingMainImageSrc: "/characters/hanasaki/ending_1.png",
+  clearedPortraitSrc: "/characters/hanasaki/top_cleared.png",
+  endingSubImageSrc: "/characters/hanasaki/ending_2.png",
 
   teaAcceptanceSystemPrompt: `
 【特別指示：お茶のお誘いへの応答】
@@ -255,6 +256,7 @@ export const hanasaki: CharacterConfig = {
   teaDateHidePortraitStrip: true,
   teaDateEmptyBackgroundSrc: "/characters/hanasaki/cafe_with_him_wide.png",
   teaDateWithCharacterBackgroundSrc: "/characters/hanasaki/cafe_with_him_portrait.png",
+  teaDateExtraBackgroundSrc: "/characters/hanasaki/cafe_3.png",
   barDateArrivalSrc: "/characters/hanasaki/bar_arrival.png",
   barDateWithCharacterBackgroundSrc: "/characters/hanasaki/bar_with_him.png",
   barDateSilenceHeroSrc: "/characters/hanasaki/bar_silence_profile.png",
