@@ -128,6 +128,13 @@ export function ProposalDatePanel({
   };
 
   const handleDecline = () => {
+    if (bgmEnabled) {
+      try {
+        const se = new Audio("/audio/proposal-decline.mp3");
+        se.volume = 0.6;
+        void se.play();
+      } catch { /* ignore */ }
+    }
     onBeforeLeave?.();
     setLeaving(true);
     window.setTimeout(() => onDecline(), 350);
