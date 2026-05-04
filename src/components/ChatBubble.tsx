@@ -119,7 +119,7 @@ export function ChatBubble({
                 onClick={proposalActions.onAccept}
                 className="rounded-full bg-gradient-to-r from-rose-500 to-pink-500 px-3.5 py-1.5 text-[11px] font-semibold text-white shadow-sm transition hover:from-rose-600 hover:to-pink-600"
               >
-                💍 プロポーズを受ける
+                💍 はい、私も・・・
               </button>
               <button
                 type="button"

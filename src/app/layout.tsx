@@ -1,5 +1,13 @@
 import type { Metadata, Viewport } from "next";
+import { Shippori_Mincho } from "next/font/google";
 import "./globals.css";
+
+const shipporiMincho = Shippori_Mincho({
+  subsets: ["latin"],
+  weight: ["400", "500"],
+  variable: "--font-shippori",
+  display: "swap",
+});
 import {
   BgmPreferenceProvider,
 } from "@/components/BgmPreferenceProvider";
@@ -25,7 +33,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ja">
+    <html lang="ja" className={shipporiMincho.variable}>
       <body className="min-h-dvh antialiased">
         <PlayerNameProvider>
           <BgmPreferenceProvider>

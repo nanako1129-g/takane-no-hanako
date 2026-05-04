@@ -35,7 +35,7 @@ const DEFAULT_PROPOSAL_DATE_WALK =
  * bracelet      : ブレスレットシーン → ユーザー自由テキスト
  * happy_wait    : 笑顔シーン → エンディング曲 + 20秒待機
  */
-type Phase = "intro" | "asking" | "walk" | "proposal1" | "proposal" | "accepted_talk" | "bracelet" | "happy_wait";
+type Phase = "intro" | "asking" | "walk" | "proposal1" | "proposal" | "accepted_wait" | "accepted_talk" | "bracelet" | "happy_scene" | "happy_wait";
 
 /**
  * シーン画像インデックス
@@ -88,10 +88,27 @@ export function ProposalDatePanel({
   const [endingSlide, setEndingSlide] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
   const introOnce = useRef(false);
+  const endingMusicRef = useRef<HTMLAudioElement | null>(null);
 
   const bgmEnabled = useBgmGlobalEnabled();
   const bgmEnabledRef = useRef(bgmEnabled);
-  useEffect(() => { bgmEnabledRef.current = bgmEnabled; }, [bgmEnabled]);
+  useEffect(() => {
+    bgmEnabledRef.current = bgmEnabled;
+    // BGM OFF になったらエンディング曲も止める
+    if (!bgmEnabled && endingMusicRef.current) {
+      endingMusicRef.current.pause();
+      endingMusicRef.current = null;
+    }
+    // BGM ON になったらエンディングフェーズ中なら再開
+    if (bgmEnabled && phase === "happy_wait" && !endingMusicRef.current) {
+      try {
+        const music = new Audio("/audio/ending-theme.mp3");
+        music.volume = 0.35;
+        endingMusicRef.current = music;
+        void music.play();
+      } catch { /* ignore */ }
+    }
+  }, [bgmEnabled, phase]);
 
   const scenes: string[] = [
     ...(character.proposalDateSceneSrcs?.length
@@ -107,7 +124,8 @@ export function ProposalDatePanel({
   const isProposalPhase = phase === "proposal1" || phase === "proposal";
   const inputDisabled = (phase !== "intro" && phase !== "bracelet") || typing;
 
-  useProposalMomentAmbient(entranceDone && !leaving);
+  // happy_wait フェーズ（エンディング曲）では環境BGMを止める
+  useProposalMomentAmbient(entranceDone && !leaving && phase !== "happy_wait");
 
   // スクロール追従
   useEffect(() => {
@@ -288,9 +306,10 @@ export function ProposalDatePanel({
         void se.play();
       } catch { /* ignore */ }
     }
-    setPhase("accepted_talk");
+    // まず waiting フェーズ（ボタン非表示）
+    setPhase("accepted_wait" as Phase);
 
-    // 少し間を置いてから花咲さんの反応セリフ
+    // セリフ表示後に accepted_talk（ボタン表示）へ
     window.setTimeout(() => {
       const replyText = interpolateUserName(
         `ありがとう…本当に、嬉しいよ。\nそうだ、実は${introTemplateUserName}さんにプレゼントしたいと思ってて…\n手、出して。`,
@@ -300,11 +319,19 @@ export function ProposalDatePanel({
         ...prev,
         { id: newMsgId(), role: "assistant", content: replyText, createdAt: Date.now() },
       ]);
+      setPhase("accepted_talk");
     }, 1000);
   }, [bgmEnabled, introTemplateUserName]);
 
   /** 「手を差し出す」ボタン → ブレスレットシーンへ */
   const handleHandOut = useCallback(() => {
+    if (bgmEnabledRef.current) {
+      try {
+        const se = new Audio("/audio/bracelet.mp3");
+        se.volume = 0.6;
+        void se.play();
+      } catch { /* ignore */ }
+    }
     setMessages((prev) => [
       ...prev,
       { id: newMsgId(), role: "user", content: "（手を差し出す）", createdAt: Date.now() },
@@ -345,28 +372,41 @@ export function ProposalDatePanel({
         ...prev,
         { id: newMsgId(), role: "user", content: trimmed, createdAt: Date.now() },
       ]);
-      setEndingSlide(0);
-      setPhase("happy_wait");
 
-      // BGM ON の時だけエンディング曲を再生
-      if (bgmEnabledRef.current) {
-        try {
-          const music = new Audio("/audio/ending-theme.mp3");
-          music.volume = 0.45;
-          void music.play();
-        } catch { /* ignore */ }
-      }
+      // まず5秒間、夜景バックの笑顔シーンを表示
+      setSceneIdx(SCENE.happy);
+      setPhase("happy_scene");
 
-      // 10秒後に2枚目へ
-      window.setTimeout(() => setEndingSlide(1), 10000);
-      // 20秒後にボタンを表示（自動遷移しない）
-      window.setTimeout(() => setShowEndingButton(true), 20000);
+      window.setTimeout(() => {
+        setEndingSlide(0);
+        setPhase("happy_wait");
+
+        // BGM ON の時だけエンディング曲を再生
+        if (bgmEnabledRef.current) {
+          try {
+            const music = new Audio("/audio/ending-theme.mp3");
+            music.volume = 0.35;
+            endingMusicRef.current = music;
+            void music.play();
+          } catch { /* ignore */ }
+        }
+
+        // 10秒後に2枚目へ
+        window.setTimeout(() => setEndingSlide(1), 10000);
+        // 20秒後にボタンを表示
+        window.setTimeout(() => setShowEndingButton(true), 20000);
+      }, 5000);
     },
     [bgmEnabledRef]
   );
 
-  /** エンディングボタン → フェードアウト → END画面へ */
+  /** エンディングボタン → エンディング曲停止 → フェードアウト → END画面へ */
   const handleEndingProceed = useCallback(() => {
+    // エンディング曲を止めてからページ遷移
+    if (endingMusicRef.current) {
+      endingMusicRef.current.pause();
+      endingMusicRef.current = null;
+    }
     onBeforeLeave?.();
     setLeaving(true);
     window.setTimeout(() => onAccept(), 400);
@@ -392,6 +432,12 @@ export function ProposalDatePanel({
   ].filter(Boolean) as string[];
   const currentEndingImg = endingImages[endingSlide] ?? endingImages[0] ?? null;
 
+  const endingInnerThoughts = [
+    "これから、二人の思い出、いっぱい作っていこう・・・",
+    "二人でいると、本当に癒される・・・ずっと二人で・・・",
+  ];
+  const currentThought = endingInnerThoughts[endingSlide] ?? "";
+
   if (phase === "happy_wait") {
     return (
       <div
@@ -409,6 +455,25 @@ export function ProposalDatePanel({
             priority
             className="object-contain transition-opacity duration-[1200ms]"
           />
+        )}
+        {/* 玄一郎の心の声 */}
+        {currentThought && (
+          <div
+            key={currentThought}
+            className="absolute inset-x-0 top-0 flex items-start justify-center px-6 pt-10 animate-scene-fade-in"
+          >
+            <p
+              className="text-center text-base leading-loose tracking-[0.15em] text-white"
+              style={{
+                fontFamily: "var(--font-shippori), 'Hiragino Mincho ProN', serif",
+                fontWeight: 400,
+                textShadow: "0 1px 6px rgba(0,0,0,0.85), 0 3px 16px rgba(0,0,0,0.6)",
+                letterSpacing: "0.18em",
+              }}
+            >
+              {currentThought}
+            </p>
+          </div>
         )}
         {/* 20秒後に現れるボタン */}
         <div
@@ -616,7 +681,7 @@ export function ProposalDatePanel({
             disabled={inputDisabled}
             placeholder="気持ちを伝える…"
           />
-        ) : phase === "happy_wait" ? (
+        ) : phase === "happy_scene" || phase === "happy_wait" ? (
           <p className="text-center text-xs text-rose-300/70 italic">
             ✨
           </p>

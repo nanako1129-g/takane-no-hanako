@@ -66,6 +66,9 @@ function buildScenePhotos(character: Character): ScenePhoto[] {
   if (character.teaDateWithCharacterBackgroundSrc) {
     photos.push({ src: character.teaDateWithCharacterBackgroundSrc, label: cafeName, sub: "ふたりの時間" });
   }
+  if (character.teaDateExtraBackgroundSrc) {
+    photos.push({ src: character.teaDateExtraBackgroundSrc, label: cafeName, sub: "もう一杯" });
+  }
   if (character.barDateArrivalSrc) {
     photos.push({ src: character.barDateArrivalSrc, label: barName, sub: "到着" });
   }
@@ -83,6 +86,12 @@ function buildScenePhotos(character: Character): ScenePhoto[] {
     });
   } else if (character.proposalDateSceneSrc) {
     photos.push({ src: character.proposalDateSceneSrc, label: proposalName, sub: "大切な夜" });
+  }
+  if (character.endingMainImageSrc) {
+    photos.push({ src: character.endingMainImageSrc, label: "付き合った後", sub: "花束" });
+  }
+  if (character.endingSubImageSrc) {
+    photos.push({ src: character.endingSubImageSrc, label: "付き合った後", sub: "カフェデート" });
   }
   photos.push({ src: character.images.happy, label: character.name, sub: "笑顔" });
   photos.push({ src: character.images.cool, label: character.name, sub: "真剣な表情" });

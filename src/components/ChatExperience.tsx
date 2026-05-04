@@ -403,7 +403,15 @@ export default function ChatExperience({
     // エンディング後の続きプレイモードを復元
     try {
       const pe = window.localStorage.getItem(`${POST_ENDING_PREFIX}${character.id}`);
-      if (pe === "true") setPostEnding(true);
+      if (pe === "true") {
+        setPostEnding(true);
+        // クリア後はお茶・お酒を常時解放
+        setDateProgress((prev) => ({
+          ...prev,
+          unlockedTea: true,
+          unlockedDrink: true,
+        }));
+      }
     } catch { /* ignore */ }
   }, [character.id]);
 
@@ -866,7 +874,8 @@ export default function ChatExperience({
         m.proposalChoices ? { ...m, proposalChoices: false } : m
       )
     );
-  }, []);
+    setAffinity((prev) => clampAffinity(prev - 20, affinityMax));
+  }, [affinityMax]);
 
   const teaDatePortraitSrc = useMemo(() => {
     return (
@@ -1033,8 +1042,9 @@ export default function ChatExperience({
     conversationEpochRef.current += 1;
     setSceneState(lineSceneState());
     setTeaDateSessionKey((k) => k + 1);
+    setAffinity((prev) => clampAffinity(prev - 20, affinityMax));
     window.setTimeout(() => setSceneDim(false), 380);
-  }, []);
+  }, [affinityMax]);
 
   const interruptBarVenueWithoutProgress = useCallback(() => {
     // onBeforeLeave 経由で sceneDim=true になった後にここが呼ばれる
