@@ -25,6 +25,11 @@ const CAFE_IMAGE_SHOW_MS = 200;
 const CAFE_UI_SHOW_MS = 600;
 /** 広角→アップに切り替えるターン数 */
 const CAFE_PORTRAIT_SWITCH_TURNS = 2;
+const CAFE_IDLE_POKE_LINES = [
+  "静かな時間も、君とだと心地いいね。",
+  "少し休憩しよっか。まだ一緒にいたい。",
+  "無理しないで、ゆっくり話そう。",
+];
 
 function newMsgId(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -357,37 +362,6 @@ export function TeaDateCafePanel({
     }
     setSending(true);
     try {
-      const historyForApi = msgs.map((m) => ({
-        role: m.role,
-        content: messageContentForGemini(m),
-      }));
-      const body = {
-        messages: historyForApi,
-        affinity: affinityRefProp.current,
-        userName,
-        teaDateCafe: true,
-        turnsInScene,
-        maxTurns,
-        charId: character.id,
-        userMessage: "",
-        postEndingCouplePlay: true,
-        companionIdlePoke: true,
-        companionIdleVenue: "cafe" as const,
-      };
-
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) {
-        const errBody = (await res.json().catch(() => ({}))) as {
-          error?: string;
-        };
-        throw new Error(errBody.error || `HTTP ${res.status}`);
-      }
-      const data = (await res.json()) as ChatResponseBody;
-
       const wait = assistantTypingDelayMs(
         character,
         affinityRefProp.current
@@ -395,25 +369,20 @@ export function TeaDateCafePanel({
       if (wait > 0) {
         await sleepMs(wait);
       }
+      const line =
+        CAFE_IDLE_POKE_LINES[
+          Math.floor(Math.random() * CAFE_IDLE_POKE_LINES.length)
+        ] ?? CAFE_IDLE_POKE_LINES[0];
 
       const assistantMsg: Message = {
         id: newMsgId(),
         role: "assistant",
-        content: data.reply,
-        inner: data.inner || undefined,
-        affinityChange: data.affinityChange ?? 0,
+        content: line,
+        inner: "この空気、嫌いじゃない。",
+        affinityChange: 0,
         createdAt: Date.now(),
       };
       setMessages((prev) => [...prev, assistantMsg]);
-
-      const delta =
-        typeof data.affinityChange === "number" &&
-        Number.isFinite(data.affinityChange)
-          ? Math.max(-15, Math.min(15, Math.round(data.affinityChange)))
-          : 0;
-      if (delta !== 0) {
-        onAffinityDelta(delta);
-      }
 
       setCompanionEpoch((n) => n + 1);
       return true;
@@ -426,11 +395,7 @@ export function TeaDateCafePanel({
     }
   }, [
     character,
-    maxTurns,
     postEndingCouplePlay,
-    onAffinityDelta,
-    turnsInScene,
-    userName,
   ]);
 
   useCompanionSilencePing({

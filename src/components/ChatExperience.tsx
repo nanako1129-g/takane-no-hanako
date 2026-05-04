@@ -109,6 +109,34 @@ const DEFAULT_BAR_DATE_FAREWELL_LINE =
 
 /** バー退店〜LINE復帰で加算する好感度（`CharacterConfig.barDateAffinityBonusOnLeave` が無いとき） */
 const DEFAULT_BAR_LEAVE_AFFINITY_BONUS = 12;
+const OVERNIGHT_BLACKOUT_MS = 5000;
+const OVERNIGHT_MORNING_HERO_SRC = "/characters/hanasaki/morning_after.png";
+const POST_ENDING_OVERNIGHT_TRIGGER_RE =
+  /(今夜.*泊まりたい|泊まりたい|お泊まり|旅行に行きたい|旅行行きたい|一緒に旅行)/;
+
+const OVERNIGHT_INVITE_LINES = [
+  "……うん、もちろん。今夜うちに来る？\nちゃんと、君を安心させるから。",
+  "いいよ。そう言ってくれて嬉しい。\n今日は、長い夜になりそうだね。",
+];
+
+const OVERNIGHT_MORNING_LINES = [
+  "おはよう。……髪、ちょっと跳ねてるね。\n昨日は、本当に素敵な夜だった。",
+  "おはよう、よく眠れた？\n……昨日の時間、すごく幸せだった。",
+];
+const OVERNIGHT_MORNING_FOLLOWUP_LINES = [
+  "……その寝癖、反則だね。朝から可愛すぎる。",
+  "カーテン越しの光、君に似合うな。見惚れてた。",
+];
+const OVERNIGHT_MORNING_REPLY_TO_USER_LINES = [
+  "おはよう。照れてる君も、ちゃんと好きだよ。",
+  "おはよう。そんな顔されると、もう少し困らせたくなるな。",
+];
+
+const LINE_IDLE_POKE_LINES = [
+  "どうしたの？ 無理してない？",
+  "ふと、君のこと考えてた。",
+  "手が空いたら、少しだけ話そう。",
+];
 
 function clampAffinity(n: number, max = 100): number {
   if (!Number.isFinite(n)) return 0;
@@ -152,6 +180,10 @@ export default function ChatExperience({
   const [sceneDim, setSceneDim] = useState(false);
   /** エンディングページへの遷移前フェードアウト */
   const [fadingToEnding, setFadingToEnding] = useState(false);
+  const [showOvernightMorningHero, setShowOvernightMorningHero] = useState(false);
+  const [overnightMorningStage, setOvernightMorningStage] = useState<
+    "idle" | "awaitingFirstUser" | "awaitingSecondUser"
+  >("idle");
 
   const [messages, setMessages] = useState<Message[]>([]);
   const messagesRef = useRef<Message[]>([]);
@@ -756,10 +788,140 @@ export default function ChatExperience({
         content: trimmed,
         createdAt: Date.now(),
       };
+      if (overnightMorningStage === "awaitingFirstUser") {
+        setError(null);
+        setSending(true);
+        setMessages((prev) => [...prev, userMsg]);
+        try {
+          const wait = assistantTypingDelayMs(character, affinityRef.current);
+          if (wait > 0) {
+            await sleepMs(wait);
+          }
+          const reply =
+            OVERNIGHT_MORNING_REPLY_TO_USER_LINES[
+              Math.floor(
+                Math.random() * OVERNIGHT_MORNING_REPLY_TO_USER_LINES.length
+              )
+            ] ?? OVERNIGHT_MORNING_REPLY_TO_USER_LINES[0];
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: newId(),
+              role: "assistant",
+              content: reply,
+              createdAt: Date.now(),
+            },
+          ]);
+          setCompanionActivityEpoch((e) => e + 1);
+          setOvernightMorningStage("awaitingSecondUser");
+        } finally {
+          setSending(false);
+        }
+        return;
+      }
+
+      if (overnightMorningStage === "awaitingSecondUser") {
+        setShowOvernightMorningHero(false);
+        setOvernightMorningStage("idle");
+      }
+
+      const shouldPlayOvernightCut =
+        postEnding &&
+        sceneState.mode === "line" &&
+        !proposalPending &&
+        !venueUiOpen &&
+        POST_ENDING_OVERNIGHT_TRIGGER_RE.test(trimmed);
+
+      if (shouldPlayOvernightCut) {
+        setError(null);
+        setSending(true);
+        setMessages((prev) => [...prev, userMsg]);
+        try {
+          const wait = assistantTypingDelayMs(character, affinityRef.current);
+          if (wait > 0) {
+            await sleepMs(wait);
+          }
+          const inviteLine =
+            OVERNIGHT_INVITE_LINES[
+              Math.floor(Math.random() * OVERNIGHT_INVITE_LINES.length)
+            ] ?? OVERNIGHT_INVITE_LINES[0];
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: newId(),
+              role: "assistant",
+              content: inviteLine,
+              createdAt: Date.now(),
+            },
+          ]);
+          setSceneDim(true);
+          await sleepMs(OVERNIGHT_BLACKOUT_MS);
+          setSceneDim(false);
+          setShowOvernightMorningHero(true);
+
+          const morningLine =
+            OVERNIGHT_MORNING_LINES[
+              Math.floor(Math.random() * OVERNIGHT_MORNING_LINES.length)
+            ] ?? OVERNIGHT_MORNING_LINES[0];
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: newId(),
+              role: "assistant",
+              content: morningLine,
+              createdAt: Date.now(),
+            },
+          ]);
+          const secondWait = Math.max(
+            420,
+            Math.round(assistantTypingDelayMs(character, affinityRef.current) * 0.7)
+          );
+          await sleepMs(secondWait);
+          const followup =
+            OVERNIGHT_MORNING_FOLLOWUP_LINES[
+              Math.floor(Math.random() * OVERNIGHT_MORNING_FOLLOWUP_LINES.length)
+            ] ?? OVERNIGHT_MORNING_FOLLOWUP_LINES[0];
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: newId(),
+              role: "assistant",
+              content: followup,
+              createdAt: Date.now(),
+            },
+          ]);
+          setOvernightMorningStage("awaitingFirstUser");
+          setAffinityPulse({ delta: 2, timestamp: Date.now() });
+          setAffinity((prev) => clampAffinity(prev + 2, affinityMax));
+          setDateProgress((prev) =>
+            evaluateUnlocks(
+              clampAffinity(affinityRef.current + 2, affinityMax),
+              prev,
+              character
+            )
+          );
+          setCompanionActivityEpoch((e) => e + 1);
+        } finally {
+          setSending(false);
+        }
+        return;
+      }
 
       await sendUserRound(userMsg, opts);
     },
-    [sendUserRound, bgmEnabled]
+    [
+      affinityMax,
+      bgmEnabled,
+      character,
+      postEnding,
+      proposalPending,
+      sceneState.mode,
+      sendUserRound,
+      setAffinity,
+      setDateProgress,
+      overnightMorningStage,
+      venueUiOpen,
+    ]
   );
 
   const handleStampPick = useCallback(
@@ -795,90 +957,27 @@ export default function ChatExperience({
     if (!msgs.length || msgs[msgs.length - 1].role !== "assistant") {
       return false;
     }
-    const epochSnapshot = conversationEpochRef.current;
     setSending(true);
     try {
-      const historyForApi = msgs.map((m) => ({
-        role: m.role,
-        content: messageContentForGemini(m),
-      }));
-      const body = {
-        messages: historyForApi,
-        affinity: affinityRef.current,
-        userName: userProfile?.name ?? "",
-        teaDateCafe: false,
-        teaDateBar: false,
-        turnsInScene: 0,
-        maxTurns: 0,
-        charId: character.id,
-        userMessage: "",
-        postEndingCouplePlay: true,
-        companionIdlePoke: true,
-        companionIdleVenue: "line" as const,
-      };
-
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-
-      if (conversationEpochRef.current !== epochSnapshot) {
-        return false;
-      }
-
-      if (!res.ok) {
-        const errBody = (await res.json().catch(() => ({}))) as {
-          error?: string;
-        };
-        throw new Error(errBody.error || `HTTP ${res.status}`);
-      }
-
-      const data = (await res.json()) as ChatResponseBody;
-
-      if (conversationEpochRef.current !== epochSnapshot) {
-        return false;
-      }
-
       const delayMs = assistantTypingDelayMs(character, affinityRef.current);
       if (delayMs > 0) {
         await sleepMs(delayMs);
       }
-      if (conversationEpochRef.current !== epochSnapshot) {
-        return false;
-      }
-
-      const delta =
-        typeof data.affinityChange === "number" ? data.affinityChange : 0;
-      const change = delta;
-      const newAffinity = clampAffinity(
-        affinityRef.current + change,
-        affinityMax
-      );
+      const line =
+        LINE_IDLE_POKE_LINES[
+          Math.floor(Math.random() * LINE_IDLE_POKE_LINES.length)
+        ] ?? LINE_IDLE_POKE_LINES[0];
 
       const assistantMsg: Message = {
         id: newId(),
         role: "assistant",
-        content: data.reply,
-        inner: data.inner || undefined,
-        affinityChange: data.affinityChange ?? 0,
+        content: line,
+        inner: "黙ってる時間も心地いいな。",
+        affinityChange: 0,
         createdAt: Date.now(),
       };
 
       setMessages((prev) => [...prev, assistantMsg]);
-      setAffinity(newAffinity);
-      setAffinityPulse({ delta: change, timestamp: Date.now() });
-      setDateProgress((prev) => evaluateUnlocks(newAffinity, prev, character));
-
-      const propTh = proposalThreshold;
-      setProposalDelivered((delivered) =>
-        typeof propTh === "number" &&
-        newAffinity >= propTh &&
-        delivered
-          ? false
-          : delivered
-      );
-
       setCompanionActivityEpoch((e) => e + 1);
       return true;
     } catch (e) {
@@ -891,14 +990,7 @@ export default function ChatExperience({
   }, [
     postEnding,
     character,
-    userProfile?.name,
-    affinityMax,
-    proposalThreshold,
-    setAffinity,
-    setAffinityPulse,
-    setDateProgress,
     setMessages,
-    setProposalDelivered,
     setSending,
   ]);
 
@@ -913,6 +1005,7 @@ export default function ChatExperience({
       sending ||
       proposalPending ||
       venueUiOpen ||
+      overnightMorningStage !== "idle" ||
       sceneState.mode !== "line" ||
       !historyHydrated ||
       !affinityHydrated,
@@ -951,6 +1044,8 @@ export default function ChatExperience({
     setSceneState(lineSceneState());
 
     setPostEnding(false);
+    setShowOvernightMorningHero(false);
+    setOvernightMorningStage("idle");
     setCompanionActivityEpoch(0);
 
     if (typeof window !== "undefined") {
@@ -1482,6 +1577,20 @@ export default function ChatExperience({
           ref={scrollRef}
           className="scrollbar-thin min-h-0 flex-1 space-y-4 overflow-y-auto px-4 pb-4 pt-2"
         >
+          {showOvernightMorningHero ? (
+            <div className="mx-auto w-full max-w-[380px] overflow-hidden rounded-2xl border border-rose-100 bg-white/70 p-2 shadow-sm">
+              <div className="relative mx-auto h-[220px] w-full sm:h-[280px]">
+                <Image
+                  src={OVERNIGHT_MORNING_HERO_SRC}
+                  alt="朝の花咲さん"
+                  fill
+                  sizes="(max-width: 640px) 92vw, 380px"
+                  className="object-contain object-center scale-[0.9] sm:scale-100"
+                  priority
+                />
+              </div>
+            </div>
+          ) : null}
           {!historyHydrated || !affinityHydrated ? (
             <p className="py-8 text-center text-xs text-slate-400">
               読み込み中…

@@ -27,6 +27,11 @@ const SOLO_HOLD_MS = 620;
 /** 相手レイヤーを重ねる時間 */
 const PAIR_CROSS_MS = 900;
 const POST_AMBIENT_MS = 220;
+const BAR_IDLE_POKE_LINES = [
+  "少し静かだね。…でも、この距離は好きだよ。",
+  "夜景、きれいだね。君と見ると落ち着く。",
+  "もう少しだけ、こうして一緒にいよう。",
+];
 
 function newMsgId(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -404,37 +409,6 @@ export function BarVenuePanel({
     }
     setSending(true);
     try {
-      const historyForApi = msgs.map((m) => ({
-        role: m.role,
-        content: messageContentForGemini(m),
-      }));
-      const body = {
-        messages: historyForApi,
-        affinity: affinityRefProp.current,
-        userName,
-        teaDateBar: true,
-        turnsInScene,
-        maxTurns,
-        charId: character.id,
-        userMessage: "",
-        postEndingCouplePlay: true,
-        companionIdlePoke: true,
-        companionIdleVenue: "bar" as const,
-      };
-
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) {
-        const errBody = (await res.json().catch(() => ({}))) as {
-          error?: string;
-        };
-        throw new Error(errBody.error || `HTTP ${res.status}`);
-      }
-      const data = (await res.json()) as ChatResponseBody;
-
       const wait = assistantTypingDelayMs(
         character,
         affinityRefProp.current
@@ -442,13 +416,17 @@ export function BarVenuePanel({
       if (wait > 0) {
         await sleepMs(wait);
       }
+      const line =
+        BAR_IDLE_POKE_LINES[
+          Math.floor(Math.random() * BAR_IDLE_POKE_LINES.length)
+        ] ?? BAR_IDLE_POKE_LINES[0];
 
       const assistantMsg: Message = {
         id: newMsgId(),
         role: "assistant",
-        content: data.reply,
-        inner: data.inner || undefined,
-        affinityChange: data.affinityChange ?? 0,
+        content: line,
+        inner: "この静けさ、ずっと続けばいいのに。",
+        affinityChange: 0,
         createdAt: Date.now(),
       };
       setMessages((prev) => [...prev, assistantMsg]);
@@ -459,15 +437,6 @@ export function BarVenuePanel({
           se.volume = 0.45;
           void se.play();
         } catch { /* ignore */ }
-      }
-
-      const delta =
-        typeof data.affinityChange === "number" &&
-        Number.isFinite(data.affinityChange)
-          ? Math.max(-15, Math.min(15, Math.round(data.affinityChange)))
-          : 0;
-      if (delta !== 0) {
-        onAffinityDelta(delta);
       }
 
       setCompanionEpoch((n) => n + 1);
@@ -482,11 +451,7 @@ export function BarVenuePanel({
   }, [
     bgmEnabled,
     character,
-    maxTurns,
     postEndingCouplePlay,
-    onAffinityDelta,
-    turnsInScene,
-    userName,
   ]);
 
   useCompanionSilencePing({
