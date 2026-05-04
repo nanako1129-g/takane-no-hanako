@@ -84,10 +84,14 @@ export function ProposalDatePanel({
   const [introTurnCount, setIntroTurnCount] = useState(0);
   const [sceneIdx, setSceneIdx] = useState<number>(SCENE.empty);
   const [typing, setTyping] = useState(false);
+  const [showEndingButton, setShowEndingButton] = useState(false);
+  const [endingSlide, setEndingSlide] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
   const introOnce = useRef(false);
 
   const bgmEnabled = useBgmGlobalEnabled();
+  const bgmEnabledRef = useRef(bgmEnabled);
+  useEffect(() => { bgmEnabledRef.current = bgmEnabled; }, [bgmEnabled]);
 
   const scenes: string[] = [
     ...(character.proposalDateSceneSrcs?.length
@@ -199,7 +203,7 @@ export function ProposalDatePanel({
             { id: newMsgId(), role: "assistant", content: proposalText, createdAt: Date.now() },
           ]);
           setPhase("proposal1");
-          setSceneIdx(SCENE.serious);
+          // 後ろ姿（walk）のまま待機、serious への切り替えは「・・・」ボタン後
         }, WALK_TO_PROPOSAL_MS);
     }, 1600);
   }, [bgmEnabled, character.proposalDateWalkAssistantMessage, character.proposalMessage, introTemplateUserName]);
@@ -261,12 +265,13 @@ export function ProposalDatePanel({
     ]
   );
 
-  /** 「・・・」ボタン → プロポーズ後半を表示 */
+  /** 「・・・」ボタン → 正面・真剣な表情に切り替えてプロポーズ後半を表示 */
   const handleProposalContinue = useCallback(() => {
     const source2 = character.proposalMessage2?.trim() ?? "";
     if (!source2) return;
     const text2 = interpolateUserName(source2, introTemplateUserName);
     const aid = newMsgId();
+    setSceneIdx(SCENE.serious);
     setMessages((prev) => [
       ...prev,
       { id: aid, role: "assistant", content: text2, createdAt: Date.now(), proposalChoices: true },
@@ -322,13 +327,13 @@ export function ProposalDatePanel({
     }, 1400);
   }, []);
 
-  /** ブレスレットシーンでのユーザー自由テキスト → 笑顔シーン + エンディング曲 */
+  /** ブレスレットシーンでのユーザー自由テキスト → 全画面エンディングスライドショーへ */
   const handleBraceletReply = useCallback(
     (text: string) => {
       const trimmed = text.trim();
       if (!trimmed) return;
 
-      if (bgmEnabled) {
+      if (bgmEnabledRef.current) {
         try {
           const se = new Audio("/audio/send.mp3");
           se.volume = 0.5;
@@ -340,28 +345,32 @@ export function ProposalDatePanel({
         ...prev,
         { id: newMsgId(), role: "user", content: trimmed, createdAt: Date.now() },
       ]);
-      setSceneIdx(SCENE.ending1);
+      setEndingSlide(0);
       setPhase("happy_wait");
 
-      // エンディング曲を再生
-      try {
-        const music = new Audio("/audio/ending-theme.mp3");
-        music.volume = 0.7;
-        void music.play();
-      } catch { /* ignore */ }
+      // BGM ON の時だけエンディング曲を再生
+      if (bgmEnabledRef.current) {
+        try {
+          const music = new Audio("/audio/ending-theme.mp3");
+          music.volume = 0.45;
+          void music.play();
+        } catch { /* ignore */ }
+      }
 
-      // 10秒後に2枚目へ切り替え
-      window.setTimeout(() => setSceneIdx(SCENE.ending2), 10000);
-
-      // 20秒後にエンディングへ
-      window.setTimeout(() => {
-        onBeforeLeave?.();
-        setLeaving(true);
-      }, 19600);
-      window.setTimeout(() => onAccept(), 20000);
+      // 10秒後に2枚目へ
+      window.setTimeout(() => setEndingSlide(1), 10000);
+      // 20秒後にボタンを表示（自動遷移しない）
+      window.setTimeout(() => setShowEndingButton(true), 20000);
     },
-    [bgmEnabled, onBeforeLeave, onAccept]
+    [bgmEnabledRef]
   );
+
+  /** エンディングボタン → フェードアウト → END画面へ */
+  const handleEndingProceed = useCallback(() => {
+    onBeforeLeave?.();
+    setLeaving(true);
+    window.setTimeout(() => onAccept(), 400);
+  }, [onBeforeLeave, onAccept]);
 
   const handleDecline = () => {
     if (bgmEnabled) {
@@ -375,6 +384,54 @@ export function ProposalDatePanel({
     setLeaving(true);
     window.setTimeout(() => onDecline(), 350);
   };
+
+  // happy_wait フェーズ：全画面スライドショー
+  const endingImages = [
+    character.endingMainImageSrc,
+    character.endingSubImageSrc,
+  ].filter(Boolean) as string[];
+  const currentEndingImg = endingImages[endingSlide] ?? endingImages[0] ?? null;
+
+  if (phase === "happy_wait") {
+    return (
+      <div
+        className={`fixed inset-0 z-[100] bg-black ${
+          leaving ? "pointer-events-none animate-scene-fade-out" : "animate-scene-fade-in"
+        }`}
+      >
+        {currentEndingImg && (
+          <Image
+            key={currentEndingImg}
+            src={currentEndingImg}
+            alt="エンディング"
+            fill
+            sizes="100vw"
+            priority
+            className="object-contain transition-opacity duration-[1200ms]"
+          />
+        )}
+        {/* 20秒後に現れるボタン */}
+        <div
+          className="absolute inset-x-0 bottom-0 flex flex-col items-center gap-3 pb-12 pt-8"
+          style={{
+            background: "linear-gradient(to top, rgba(0,0,0,0.7) 0%, transparent 100%)",
+            opacity: showEndingButton ? 1 : 0,
+            transition: "opacity 1200ms ease-in-out",
+            pointerEvents: showEndingButton ? "auto" : "none",
+          }}
+        >
+          <button
+            type="button"
+            onClick={handleEndingProceed}
+            className="rounded-full border-2 border-rose-300/80 bg-black/40 px-8 py-3 text-sm font-semibold text-rose-100 backdrop-blur-sm transition hover:bg-black/60 active:scale-95"
+          >
+            二人は付き合うことになりました ❤️<br />
+            <span className="text-xs font-normal opacity-80">これからも物語は続く・・・</span>
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
