@@ -170,8 +170,8 @@ export const hanasaki: CharacterConfig = {
 
   teaInviteThreshold: 75,
   drinkInviteThreshold: 85,
-  requiredTeaCountForDrink: 2,
-  requiredDrinkCountForProposal: 2,
+  requiredTeaCountForDrink: 1,
+  requiredDrinkCountForProposal: 1,
 
   teaInviteUserMessage: "今度、お茶でも飲みに行きませんか？",
   drinkInviteUserMessage: "今度、お酒でも飲みに行きませんか？",

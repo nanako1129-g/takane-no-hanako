@@ -1370,7 +1370,7 @@ export default function ChatExperience({
               disabled={isLoading || venueUiOpen}
               className="flex w-full items-center justify-center rounded-xl border-2 border-rose-300/80 bg-gradient-to-b from-rose-50/95 to-white px-4 py-3.5 text-sm font-semibold tracking-wide text-rose-900 shadow-[0_1px_0_rgba(0,0,0,0.06)] transition hover:border-rose-400 hover:from-rose-50 hover:to-rose-50/80 disabled:opacity-50"
             >
-              💍 デートに行く
+              ✨ 特別なデートに行く
             </button>
           ) : null}
           {awaitingTeaOuting ? (
