@@ -4,7 +4,7 @@ import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { ChatBubble } from "@/components/ChatBubble";
 import { HeartIndicator } from "@/components/HeartIndicator";
-import { BgmToggleButton } from "@/components/BgmPreferenceProvider";
+import { BgmToggleButton, useBgmGlobalEnabled } from "@/components/BgmPreferenceProvider";
 import { interpolateUserName } from "@/lib/promptInterpolate";
 import { useProposalMomentAmbient } from "@/hooks/useProposalAmbient";
 import type { AffinityPulse, Character, Message } from "@/types";
@@ -112,7 +112,16 @@ export function ProposalDatePanel({
     introTemplateUserName,
   ]);
 
+  const bgmEnabled = useBgmGlobalEnabled();
+
   const handleAccept = () => {
+    if (bgmEnabled) {
+      try {
+        const se = new Audio("/audio/proposal-accept.mp3");
+        se.volume = 0.7;
+        void se.play();
+      } catch { /* ignore */ }
+    }
     onBeforeLeave?.();
     setLeaving(true);
     window.setTimeout(() => onAccept(), 350);

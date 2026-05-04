@@ -795,8 +795,15 @@ export default function ChatExperience({
   );
 
   const handleProposalAccept = useCallback(() => {
+    if (bgmEnabled) {
+      try {
+        const se = new Audio("/audio/proposal-accept.mp3");
+        se.volume = 0.7;
+        void se.play();
+      } catch { /* ignore */ }
+    }
     router.push(`/ending/${character.id}`);
-  }, [character.id, router]);
+  }, [character.id, router, bgmEnabled]);
 
   const handleProposalDecline = useCallback(() => {
     setProposalDelivered(true);
