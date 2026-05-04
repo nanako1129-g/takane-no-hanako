@@ -133,6 +133,19 @@ export function BarVenuePanel({
   useBarPolarisAmbient(entranceDone && !leaving);
   const bgmEnabled = useBgmGlobalEnabled();
 
+  /** 乾杯画像が現れた瞬間（overlay フェードアウト開始）に効果音を鳴らす */
+  const prevPairLayerVisible = useRef(false);
+  useEffect(() => {
+    if (pairLayerVisible && !prevPairLayerVisible.current && bgmEnabled) {
+      try {
+        const se = new Audio("/audio/kanpai.mp3");
+        se.volume = 0.6;
+        void se.play();
+      } catch { /* ignore */ }
+    }
+    prevPairLayerVisible.current = pairLayerVisible;
+  }, [pairLayerVisible, bgmEnabled]);
+
   useEffect(() => {
     let cancelled = false;
     const timers: number[] = [];
