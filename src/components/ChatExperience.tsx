@@ -1252,9 +1252,9 @@ export default function ChatExperience({
         />
       ) : null}
 
-      {/* モバイル: 上に立ち絵 40vh / PC: 左カラム */}
-      <aside className="flex h-[40vh] shrink-0 items-center justify-center border-b border-rose-100 bg-gradient-to-b from-white to-rose-50/70 px-3 py-2 md:h-full md:min-h-0 md:border-b-0 md:border-r md:bg-gradient-to-br md:from-white md:to-rose-50/80">
-        <div className="w-[min(100%,calc(40vh*9/16))] max-h-[40vh] shrink-0 md:max-h-[min(85vh,720px)] md:w-full md:max-w-[320px]">
+      {/* モバイル: 上に立ち絵 24vh（旧40vh比で下の会話 flex 領域が約1.5倍）/ PC: 左カラム */}
+      <aside className="flex h-[24vh] shrink-0 items-center justify-center border-b border-rose-100 bg-gradient-to-b from-white to-rose-50/70 px-3 py-2 md:h-full md:min-h-0 md:border-b-0 md:border-r md:bg-gradient-to-br md:from-white md:to-rose-50/80">
+        <div className="w-[min(100%,calc(24vh*9/16))] max-h-[24vh] shrink-0 md:max-h-[min(85vh,720px)] md:w-full md:max-w-[320px]">
           <CharacterPortrait affinity={affinity} character={character} />
         </div>
       </aside>
@@ -1263,8 +1263,8 @@ export default function ChatExperience({
       <section className="flex min-h-0 flex-col overflow-hidden bg-rose-50/40">
         {/* ヘッダー：左プロフィール / 中央ハート / 右リセット・BGM（狭い画面でも被らないよう3カラム） */}
         <header className="sticky top-0 z-10 flex shrink-0 flex-col border-b border-rose-100 bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/85">
-          <div className="grid min-h-[3.25rem] grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-x-1 px-2 py-2 sm:gap-x-2 sm:px-4 sm:py-3">
-            <div className="flex min-w-0 items-center gap-1 sm:gap-2">
+          <div className="flex min-h-[3.25rem] items-center gap-2 px-2 py-2 sm:gap-3 sm:px-4 sm:py-3">
+            <div className="flex min-w-0 flex-1 items-center gap-1 sm:gap-2">
               <Link
                 href="/"
                 className="shrink-0 rounded-full px-2 py-1 text-sm text-slate-500 transition hover:bg-rose-50 hover:text-rose-500"
@@ -1285,7 +1285,7 @@ export default function ChatExperience({
                     />
                   ) : null}
                 </div>
-                <div className="min-w-0 leading-tight">
+                <div className="min-w-0 flex-1 overflow-hidden leading-tight">
                   <p className="truncate text-sm font-semibold text-slate-800">
                     {character.name}
                   </p>
@@ -1295,10 +1295,11 @@ export default function ChatExperience({
                 </div>
               </div>
             </div>
-            <div className="flex justify-center self-center px-0.5 sm:px-1">
-              <HeartIndicator affinity={affinity} pulse={affinityPulse} />
-            </div>
-            <div className="flex min-w-0 items-center justify-end gap-1.5 sm:gap-2">
+            {/* ハートは中央カラムではなく右寄せクラスタ先頭に置き、プロフィールと被らないようにする */}
+            <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+              <div className="shrink-0 pl-1">
+                <HeartIndicator affinity={affinity} pulse={affinityPulse} />
+              </div>
               {showResetButton ? (
                 <button
                   type="button"

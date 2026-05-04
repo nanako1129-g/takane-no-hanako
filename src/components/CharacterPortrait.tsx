@@ -22,7 +22,7 @@ export function CharacterPortrait({
 
   return (
     <div className={`relative mx-auto overflow-hidden rounded-2xl bg-slate-100 shadow-md ring-1 ring-rose-100/80 ${className}`}>
-      {/* 9:16 縦長。モバイルは親で h-[40vh] と組み合わせ、MD は親が幅を決める */}
+      {/* 9:16 縦長。モバイルは親で h-[24vh] と組み合わせ、MD は親が幅を決める */}
       <div className="relative aspect-[9/16] w-full">
         <Image
           key={src}
