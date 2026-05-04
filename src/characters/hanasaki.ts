@@ -175,6 +175,14 @@ export const hanasaki: CharacterConfig = {
   teaDateLocationName: "喫茶 プリムローズ",
   barDateLocationName: "Bar Polaris",
   proposalDateLocationName: "夜の公園",
+  proposalDateSceneSrcs: [
+    "/characters/hanasaki/proposal_1_empty.png",
+    "/characters/hanasaki/proposal_2_arrival.png",
+    "/characters/hanasaki/proposal_3_walk.png",
+    "/characters/hanasaki/proposal_4_serious.png",
+    "/characters/hanasaki/proposal_5_bracelet.png",
+    "/characters/hanasaki/proposal_6_happy.png",
+  ],
 
   teaAcceptanceSystemPrompt: `
 【特別指示：お茶のお誘いへの応答】

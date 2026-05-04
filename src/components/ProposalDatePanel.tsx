@@ -15,6 +15,17 @@ const DEFAULT_PROPOSAL_DATE_INTRO =
 /** イントロ表示から提案文表示までの間（ms） */
 const PROPOSAL_AUTO_DELAY_MS = 2800;
 
+/**
+ * シーン画像のインデックス定義
+ * 0: 誰もいない公園（入場直後）
+ * 1: 花咲さん登場（entranceDone）
+ * 2: 歩くシーン（イントロ表示後 2s）
+ * 3: プロポーズ真剣（プロポーズ文表示時）
+ * 4: ブレスレット（承諾直後）
+ * 5: 笑顔（ブレスレット 2.5s 後 → エンディングへ）
+ */
+const SCENE_IDX = { empty: 0, arrival: 1, walk: 2, serious: 3, bracelet: 4, happy: 5 } as const;
+
 function newMsgId(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
     return crypto.randomUUID();
@@ -48,11 +59,19 @@ export function ProposalDatePanel({
   const [proposalMsgId, setProposalMsgId] = useState<string | null>(null);
   const [leaving, setLeaving] = useState(false);
   const [entranceDone, setEntranceDone] = useState(false);
+  const [currentSceneIdx, setCurrentSceneIdx] = useState<number>(SCENE_IDX.empty);
   const scrollRef = useRef<HTMLDivElement>(null);
   const introOnce = useRef(false);
 
   const proposalPending = proposalMsgId !== null;
-  const sceneSrc = character.proposalDateSceneSrc?.trim() ?? null;
+
+  // シーン画像リスト（proposalDateSceneSrcs 優先、なければ単一画像をフォールバック）
+  const scenes: string[] = character.proposalDateSceneSrcs?.length
+    ? character.proposalDateSceneSrcs
+    : character.proposalDateSceneSrc?.trim()
+    ? [character.proposalDateSceneSrc.trim()]
+    : [];
+  const currentSceneSrc = scenes[currentSceneIdx] ?? scenes[scenes.length - 1] ?? null;
 
   useProposalMomentAmbient(entranceDone && !leaving);
 
@@ -63,9 +82,12 @@ export function ProposalDatePanel({
     el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
   }, [messages]);
 
-  // 入場アニメ
+  // 入場アニメ → シーン1（花咲さん登場）へ
   useEffect(() => {
-    const id = window.setTimeout(() => setEntranceDone(true), 600);
+    const id = window.setTimeout(() => {
+      setEntranceDone(true);
+      setCurrentSceneIdx(SCENE_IDX.arrival);
+    }, 600);
     return () => window.clearTimeout(id);
   }, []);
 
@@ -87,7 +109,10 @@ export function ProposalDatePanel({
     };
     setMessages([introMsg]);
 
-    // PROPOSAL_AUTO_DELAY_MS 後にプロポーズ文を表示
+    // 2s後に歩くシーンへ切り替え
+    const walkId = window.setTimeout(() => setCurrentSceneIdx(SCENE_IDX.walk), 2000);
+
+    // PROPOSAL_AUTO_DELAY_MS 後にプロポーズ文を表示 → 真剣シーンへ
     const pid = window.setTimeout(() => {
       const proposalSource = character.proposalMessage?.trim() ?? "";
       if (!proposalSource) return;
@@ -102,9 +127,13 @@ export function ProposalDatePanel({
       };
       setMessages((prev) => [...prev, proposalMsg]);
       setProposalMsgId(aid);
+      setCurrentSceneIdx(SCENE_IDX.serious);
     }, PROPOSAL_AUTO_DELAY_MS);
 
-    return () => window.clearTimeout(pid);
+    return () => {
+      window.clearTimeout(walkId);
+      window.clearTimeout(pid);
+    };
   }, [
     entranceDone,
     character.proposalDateIntroAssistantMessage,
@@ -122,9 +151,14 @@ export function ProposalDatePanel({
         void se.play();
       } catch { /* ignore */ }
     }
-    onBeforeLeave?.();
-    setLeaving(true);
-    window.setTimeout(() => onAccept(), 350);
+    // ブレスレット → 笑顔 → エンディングのシーケンス
+    setCurrentSceneIdx(SCENE_IDX.bracelet);
+    window.setTimeout(() => setCurrentSceneIdx(SCENE_IDX.happy), 2500);
+    window.setTimeout(() => {
+      onBeforeLeave?.();
+      setLeaving(true);
+    }, 4800);
+    window.setTimeout(() => onAccept(), 5200);
   };
 
   const handleDecline = () => {
@@ -194,42 +228,35 @@ export function ProposalDatePanel({
       {/* メインコンテンツ */}
       <div className="relative z-[1] flex min-h-0 flex-1 flex-col overflow-hidden">
         {/* シーン画像（中央に配置） */}
-        {sceneSrc ? (
+        <div
+          className={`shrink-0 px-3 pb-1.5 pt-2 transition-opacity duration-700 sm:px-4 sm:pb-2 sm:pt-3 ${
+            entranceDone ? "opacity-100" : "opacity-40"
+          }`}
+        >
           <div
-            className={`shrink-0 px-3 pb-1.5 pt-2 transition-opacity duration-700 sm:px-4 sm:pb-2 sm:pt-3 ${
-              entranceDone ? "opacity-100" : "opacity-40"
-            }`}
+            className="relative isolate mx-auto h-[min(26vh,200px)] overflow-hidden rounded-2xl shadow-[0_8px_32px_-8px_rgba(0,0,0,0.22)] ring-1 ring-rose-200/50 sm:h-[min(36vh,320px)]"
+            style={{ maxWidth: "min(92vw, 420px)" }}
           >
-            <div
-              className="relative isolate mx-auto h-[min(26vh,200px)] overflow-hidden rounded-2xl shadow-[0_8px_32px_-8px_rgba(0,0,0,0.22)] ring-1 ring-rose-200/50 sm:h-[min(36vh,320px)]"
-              style={{ maxWidth: "min(92vw, 420px)" }}
-            >
-              <Image
-                src={sceneSrc}
-                alt="プロポーズデート"
-                fill
-                sizes="(max-width: 768px) 92vw, 420px"
-                priority
-                className="object-cover object-center"
-              />
-              <div className="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-[#f5f0eb]/60 to-transparent" />
-            </div>
+            {currentSceneSrc ? (
+              <>
+                <Image
+                  key={currentSceneSrc}
+                  src={currentSceneSrc}
+                  alt="プロポーズデート"
+                  fill
+                  sizes="(max-width: 768px) 92vw, 420px"
+                  priority
+                  className="object-cover object-center transition-opacity duration-700"
+                />
+                <div className="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-[#f5f0eb]/60 to-transparent" />
+              </>
+            ) : (
+              <div className="flex h-full items-center justify-center bg-gradient-to-br from-rose-50 to-amber-50">
+                <p className="text-4xl opacity-30">💍</p>
+              </div>
+            )}
           </div>
-        ) : (
-          /* 画像未設定のプレースホルダー */
-          <div
-            className={`shrink-0 px-3 pb-1.5 pt-2 transition-opacity duration-700 sm:px-4 sm:pb-2 sm:pt-3 ${
-              entranceDone ? "opacity-100" : "opacity-40"
-            }`}
-          >
-            <div
-              className="relative isolate mx-auto flex h-[min(26vh,200px)] items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br from-rose-50 to-amber-50 shadow-[0_8px_32px_-8px_rgba(0,0,0,0.12)] ring-1 ring-rose-200/50 sm:h-[min(36vh,320px)]"
-              style={{ maxWidth: "min(92vw, 420px)" }}
-            >
-              <p className="text-4xl opacity-30">💍</p>
-            </div>
-          </div>
-        )}
+        </div>
 
         {/* スクロール可能な会話エリア */}
         <div

@@ -36,6 +36,12 @@ export type CharacterConfig = {
   /** プロポーズデートの場所画像（public/ 配下のパス。未設定時はプレースホルダー） */
   proposalDateSceneSrc?: string;
   /**
+   * プロポーズデートのシーン画像リスト（6枚対応）。
+   * [0] 誰もいない公園, [1] 登場, [2] 歩く, [3] プロポーズ真剣, [4] ブレスレット, [5] 笑顔
+   * 設定時は proposalDateSceneSrc より優先。
+   */
+  proposalDateSceneSrcs?: string[];
+  /**
    * アシスタントの返答を表示するまでの見かけの遅延（ms）。両方あるときのみ有効。
    * 体感の「間」用。下限〜上限の間を好感度に応じて偏らせたランダムにする。
    */
