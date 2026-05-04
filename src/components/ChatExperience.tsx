@@ -17,6 +17,7 @@ import { DateInviteButtons } from "@/components/DateInviteButtons";
 import { AffinityDemoToolbar } from "@/components/AffinityDemoToolbar";
 import {
   BgmToggleButton,
+  useBgmGlobalEnabled,
 } from "@/components/BgmPreferenceProvider";
 import { HeartIndicator } from "@/components/HeartIndicator";
 import { MessageInput } from "@/components/MessageInput";
@@ -150,6 +151,20 @@ export default function ChatExperience({
   const [unlockToast, setUnlockToast] = useState<string | null>(null);
   const [pendingInviteAcceptance, setPendingInviteAcceptance] =
     useState<DateInviteType | null>(null);
+
+  const bgmEnabled = useBgmGlobalEnabled();
+
+  /** デート解禁時に成功音を鳴らす */
+  useEffect(() => {
+    if (!unlockToast || !bgmEnabled) return;
+    try {
+      const se = new Audio("/audio/unlock.mp3");
+      se.volume = 0.55;
+      void se.play();
+    } catch {
+      // ignore
+    }
+  }, [unlockToast, bgmEnabled]);
 
   /** リセット後に進行途中の `/api/chat` 応答で state が上書きされないようにする */
   const conversationEpochRef = useRef(0);
