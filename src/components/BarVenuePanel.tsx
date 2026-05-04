@@ -4,7 +4,7 @@ import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ChatBubble } from "@/components/ChatBubble";
 import { HeartIndicator } from "@/components/HeartIndicator";
-import { BgmToggleButton } from "@/components/BgmPreferenceProvider";
+import { BgmToggleButton, useBgmGlobalEnabled } from "@/components/BgmPreferenceProvider";
 import { MessageInput } from "@/components/MessageInput";
 import { messageContentForGemini } from "@/lib/stamps";
 import { assistantTypingDelayMs, sleepMs } from "@/lib/replyLatency";
@@ -131,6 +131,7 @@ export function BarVenuePanel({
   void hidePortraitStrip; // 新レイアウトでは画像カード内に統合済み
 
   useBarPolarisAmbient(entranceDone && !leaving);
+  const bgmEnabled = useBgmGlobalEnabled();
 
   useEffect(() => {
     let cancelled = false;
@@ -240,6 +241,14 @@ export function BarVenuePanel({
       const trimmed = text.trim();
       if (!trimmed || inputBlocked) return;
 
+      if (bgmEnabled) {
+        try {
+          const se = new Audio("/audio/send.mp3");
+          se.volume = 0.5;
+          void se.play();
+        } catch { /* ignore */ }
+      }
+
       const userMsg: Message = {
         id: newMsgId(),
         role: "user",
@@ -327,6 +336,7 @@ export function BarVenuePanel({
     },
     [
       affinity,
+      bgmEnabled,
       character,
       inputBlocked,
       maxTurns,

@@ -688,6 +688,14 @@ export default function ChatExperience({
       const trimmed = text.trim();
       if (!trimmed) return;
 
+      if (bgmEnabled) {
+        try {
+          const se = new Audio("/audio/send.mp3");
+          se.volume = 0.5;
+          void se.play();
+        } catch { /* ignore */ }
+      }
+
       const userMsg: Message = {
         id: newId(),
         role: "user",
@@ -697,7 +705,7 @@ export default function ChatExperience({
 
       await sendUserRound(userMsg, opts);
     },
-    [sendUserRound]
+    [sendUserRound, bgmEnabled]
   );
 
   const handleStampPick = useCallback(
