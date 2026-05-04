@@ -7,7 +7,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { getCharacter, pickCharacterPortrait } from "@/characters";
 import { clearCachedAnalysis } from "@/lib/analysisCache";
 import { useProposalEndingAmbient } from "@/hooks/useProposalAmbient";
-import type { Message } from "@/types";
+import type { Character, Message } from "@/types";
 
 const MESSAGES_PREFIX = "messages_";
 const AFFINITY_PREFIX = "affinity_";
@@ -49,6 +49,38 @@ function formatTime(ts: number): string {
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
+type ScenePhoto = { src: string; label: string; sub?: string };
+
+/** キャラクター設定からシーン写真一覧を組み立てる */
+function buildScenePhotos(character: Character): ScenePhoto[] {
+  const photos: ScenePhoto[] = [];
+  const cafeName = character.teaDateLocationName ?? "喫茶店";
+  const barName = character.barDateLocationName ?? "居酒屋";
+
+  if (character.teaDateEmptyBackgroundSrc) {
+    photos.push({ src: character.teaDateEmptyBackgroundSrc, label: cafeName, sub: "待ち合わせ" });
+  }
+  if (character.teaDateWithCharacterBackgroundSrc) {
+    photos.push({ src: character.teaDateWithCharacterBackgroundSrc, label: cafeName, sub: "ふたりの時間" });
+  }
+  if (character.barDateArrivalSrc) {
+    photos.push({ src: character.barDateArrivalSrc, label: barName, sub: "到着" });
+  }
+  if (character.barDateWithCharacterBackgroundSrc) {
+    photos.push({ src: character.barDateWithCharacterBackgroundSrc, label: barName, sub: "乾杯" });
+  }
+  if (character.barDateSilenceHeroSrc) {
+    photos.push({ src: character.barDateSilenceHeroSrc, label: barName, sub: "夜景と沈黙" });
+  }
+  if (character.proposalDateSceneSrc) {
+    photos.push({ src: character.proposalDateSceneSrc, label: "プロポーズ", sub: "大切な夜" });
+  }
+  photos.push({ src: character.images.happy, label: character.name, sub: "笑顔" });
+  photos.push({ src: character.images.cool, label: character.name, sub: "真剣な表情" });
+
+  return photos;
+}
+
 export default function EndingPage({
   params,
 }: {
@@ -64,6 +96,10 @@ export default function EndingPage({
   const [messages, setMessages] = useState<Message[]>([]);
   const [showLogs, setShowLogs] = useState(false);
   const logScrollRef = useRef<HTMLDivElement>(null);
+
+  const [showGallery, setShowGallery] = useState(false);
+  const [galleryIndex, setGalleryIndex] = useState(0);
+  const scenePhotos = buildScenePhotos(character);
 
   useEffect(() => {
     const s = readFinalData(character.id);
@@ -151,20 +187,103 @@ export default function EndingPage({
           </Link>
         </div>
 
-        {messages.length > 0 ? (
+        <div className="flex w-full max-w-xs flex-col gap-3">
+          {messages.length > 0 ? (
+            <button
+              type="button"
+              onClick={() => setShowLogs(true)}
+              className="flex w-full items-center justify-center gap-2 rounded-full border-2 border-rose-200/70 bg-gradient-to-b from-rose-50 to-white px-5 py-3 text-sm font-semibold text-rose-700 shadow-sm transition hover:border-rose-300 hover:from-rose-100"
+            >
+              ❤️ 過去に話した内容を思い出す
+            </button>
+          ) : null}
           <button
             type="button"
-            onClick={() => setShowLogs(true)}
-            className="flex w-full max-w-xs items-center justify-center gap-2 rounded-full border-2 border-rose-200/70 bg-gradient-to-b from-rose-50 to-white px-5 py-3 text-sm font-semibold text-rose-700 shadow-sm transition hover:border-rose-300 hover:from-rose-100"
+            onClick={() => { setGalleryIndex(0); setShowGallery(true); }}
+            className="flex w-full items-center justify-center gap-2 rounded-full border-2 border-amber-200/70 bg-gradient-to-b from-amber-50 to-white px-5 py-3 text-sm font-semibold text-amber-800 shadow-sm transition hover:border-amber-300 hover:from-amber-100"
           >
-            ❤️ 過去に話した内容を思い出す
+            🌟 思い出のシーンを振り返る
           </button>
-        ) : null}
+        </div>
 
         <p className="max-w-md text-[10px] leading-relaxed text-slate-400">
           ※ お台場の夜景が綺麗な海辺での本格プロポーズ演出は近日実装予定 🌊
         </p>
       </div>
+
+      {/* シーンギャラリーオーバーレイ */}
+      {showGallery ? (
+        <div className="fixed inset-0 z-50 flex flex-col bg-black">
+          {/* ヘッダー */}
+          <header className="flex shrink-0 items-center justify-between px-4 py-3">
+            <button
+              type="button"
+              onClick={() => setShowGallery(false)}
+              className="rounded-full px-2 py-1 text-sm text-white/70 transition hover:text-white"
+            >
+              ‹ 戻る
+            </button>
+            <p className="text-xs text-white/50">
+              {galleryIndex + 1} / {scenePhotos.length}
+            </p>
+            <div className="w-16" />
+          </header>
+
+          {/* 画像エリア */}
+          <div className="relative min-h-0 flex-1">
+            <Image
+              key={scenePhotos[galleryIndex].src}
+              src={scenePhotos[galleryIndex].src}
+              alt={scenePhotos[galleryIndex].label}
+              fill
+              sizes="100vw"
+              className="object-contain"
+              priority
+            />
+            {/* 左右タップ領域 */}
+            <button
+              type="button"
+              aria-label="前へ"
+              onClick={() => setGalleryIndex((i) => (i - 1 + scenePhotos.length) % scenePhotos.length)}
+              className="absolute inset-y-0 left-0 w-1/3"
+            />
+            <button
+              type="button"
+              aria-label="次へ"
+              onClick={() => setGalleryIndex((i) => (i + 1) % scenePhotos.length)}
+              className="absolute inset-y-0 right-0 w-1/3"
+            />
+          </div>
+
+          {/* フッター：ラベル＋ドットナビ */}
+          <footer className="shrink-0 pb-safe px-4 pb-6 pt-3 text-center">
+            <p className="text-base font-semibold text-white/90">
+              {scenePhotos[galleryIndex].label}
+            </p>
+            {scenePhotos[galleryIndex].sub ? (
+              <p className="mt-0.5 text-xs text-white/50">
+                {scenePhotos[galleryIndex].sub}
+              </p>
+            ) : null}
+            {/* ドットインジケータ */}
+            <div className="mt-3 flex justify-center gap-1.5">
+              {scenePhotos.map((_, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => setGalleryIndex(i)}
+                  className={`h-1.5 rounded-full transition-all ${
+                    i === galleryIndex
+                      ? "w-4 bg-white"
+                      : "w-1.5 bg-white/30"
+                  }`}
+                  aria-label={`${i + 1}枚目`}
+                />
+              ))}
+            </div>
+          </footer>
+        </div>
+      ) : null}
 
       {/* 会話ログオーバーレイ */}
       {showLogs ? (
