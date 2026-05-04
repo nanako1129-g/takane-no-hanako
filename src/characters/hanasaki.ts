@@ -125,7 +125,7 @@ export const hanasaki: CharacterConfig = {
 `,
 
   initialAffinity: 55,
-  greeting: "こんばんは。今日は冷えますね。",
+  greeting: "こんばんは。今日もお疲れさまでした。",
 
   proposalThreshold: 95,
 
