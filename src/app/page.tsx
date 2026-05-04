@@ -42,8 +42,8 @@ export default function HomePage() {
         <p className="text-xs font-semibold tracking-[0.3em] text-rose-400">
           TAKANE NO HANAKO-SAN
         </p>
-        <div className="mt-2 flex flex-col items-center gap-2 sm:flex-row sm:justify-between sm:text-left">
-          <h1 className="text-3xl font-bold text-slate-800">高嶺の花子さん</h1>
+        <div className="mt-2 flex items-center justify-center gap-2">
+          <h1 className="text-3xl font-bold text-slate-800">🌸 高嶺の花子さん</h1>
           {userProfile ? (
             <button
               type="button"
@@ -57,10 +57,12 @@ export default function HomePage() {
           ) : null}
         </div>
         <p className="mt-3 text-sm leading-relaxed text-slate-600">
-          高嶺の花とチャット。
+          高嶺の花の彼とチャット。
           <br />
           表面の言葉だけじゃなく、<span className="text-rose-500">内心</span>
-          まで覗ける、ちょっとドキドキする会話練習。
+          まで覗ける、ちょっとドキドキする会話を楽しみながら、
+          <br />
+          コミュニケーション力UP⭐️
         </p>
       </header>
 
