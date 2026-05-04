@@ -79,9 +79,16 @@ export function BarVenuePanel({
 
   const emptySrc = character.barDateEmptyBackgroundSrc?.trim();
   const withSrc = character.barDateWithCharacterBackgroundSrc?.trim();
-  const hasPairBg = Boolean(emptySrc && withSrc);
-  /** 無人フェーズ無し・乾杯パネルだけ（`bar_empty` 未定義） */
-  const hasSoloBarBg = Boolean(withSrc && !emptySrc);
+  const arrivalSrc = character.barDateArrivalSrc?.trim();
+  /**
+   * overlayBgSrc: 最初に手前に表示するオーバーレイ画像。
+   * - arrivalSrc があれば到着画像（1ターン後にフェードアウト）
+   * - なければ emptySrc（タイマーでフェードアウト・既存挙動）
+   */
+  const overlayBgSrc = arrivalSrc || emptySrc;
+  const hasPairBg = Boolean(overlayBgSrc && withSrc);
+  /** 無人フェーズ無し・乾杯パネルだけ（overlay 未定義） */
+  const hasSoloBarBg = Boolean(withSrc && !overlayBgSrc);
   const telopLine =
     character.barDateLocationTelop?.trim() || DEFAULT_BAR_LOCATION_TELOP;
 
@@ -94,7 +101,16 @@ export function BarVenuePanel({
   const [entranceDone, setEntranceDone] = useState(false);
   const [whiteVeilGone, setWhiteVeilGone] = useState(false);
   const [telopVisible, setTelopVisible] = useState(false);
-  const [pairLayerVisible, setPairLayerVisible] = useState(!hasPairBg);
+  /** タイマー駆動（emptySrc のみ）のペアフェード用フラグ */
+  const [timerPairLayerVisible, setTimerPairLayerVisible] = useState(!hasPairBg);
+  /**
+   * arrivalSrc がある場合は 1 ターン後に overlay を消す（ターン駆動）。
+   * ない場合は既存タイマー駆動。
+   * pairLayerVisible = true → overlay opacity 0（乾杯画像が見える）
+   */
+  const pairLayerVisible = arrivalSrc
+    ? turnsInScene >= 1
+    : timerPairLayerVisible;
 
   const userSays = messages.filter((m) => m.role === "user").length;
   const showLeavePrompt =
@@ -137,16 +153,15 @@ export function BarVenuePanel({
 
     const sceneRevealedAt = WHITE_IN_MS + TELOP_MS + WHITE_OUT_MS;
 
-    if (hasPairBg) {
-      after(sceneRevealedAt + SOLO_HOLD_MS, () => setPairLayerVisible(true));
+    if (hasPairBg && !arrivalSrc) {
+      // タイマー駆動フェード（emptySrc のみの場合）
+      after(sceneRevealedAt + SOLO_HOLD_MS, () => setTimerPairLayerVisible(true));
       after(
-        sceneRevealedAt +
-          SOLO_HOLD_MS +
-          PAIR_CROSS_MS +
-          POST_AMBIENT_MS,
+        sceneRevealedAt + SOLO_HOLD_MS + PAIR_CROSS_MS + POST_AMBIENT_MS,
         () => setEntranceDone(true)
       );
     } else {
+      // arrivalSrc がある場合はターン駆動なのでタイマー不要
       after(sceneRevealedAt + POST_AMBIENT_MS, () => setEntranceDone(true));
     }
 
@@ -406,8 +421,8 @@ export function BarVenuePanel({
               className="relative isolate mx-auto h-[min(26vh,200px)] overflow-hidden rounded-2xl shadow-[0_8px_40px_-8px_rgba(0,0,0,0.7)] ring-1 ring-rose-200/20 sm:h-[min(36vh,320px)]"
               style={{ maxWidth: "min(92vw, 420px)" }}
             >
-              {/* ベース画像（bar_with_him / bar_empty） */}
-              {(hasPairBg || hasSoloBarBg) && withSrc ? (
+              {/* ベース画像（乾杯・bar_with_him） */}
+              {withSrc ? (
                 <Image
                   src={withSrc}
                   alt="バー個室"
@@ -417,7 +432,8 @@ export function BarVenuePanel({
                   className="object-cover object-center"
                 />
               ) : null}
-              {hasPairBg && emptySrc ? (
+              {/* オーバーレイ（到着 or 無人）：pairLayerVisible=true でフェードアウト */}
+              {hasPairBg && overlayBgSrc ? (
                 <div
                   className="absolute inset-0"
                   style={{
@@ -428,8 +444,8 @@ export function BarVenuePanel({
                   }}
                 >
                   <Image
-                    src={emptySrc}
-                    alt=""
+                    src={overlayBgSrc}
+                    alt="到着シーン"
                     fill
                     sizes="(max-width: 768px) 92vw, 420px"
                     priority

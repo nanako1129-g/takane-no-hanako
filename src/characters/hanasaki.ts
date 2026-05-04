@@ -241,6 +241,7 @@ export const hanasaki: CharacterConfig = {
   teaDateHidePortraitStrip: true,
   teaDateEmptyBackgroundSrc: "/characters/hanasaki/cafe_with_him_wide.png",
   teaDateWithCharacterBackgroundSrc: "/characters/hanasaki/cafe_with_him_portrait.png",
+  barDateArrivalSrc: "/characters/hanasaki/bar_arrival.png",
   barDateWithCharacterBackgroundSrc: "/characters/hanasaki/bar_with_him.png",
   barDateSilenceHeroSrc: "/characters/hanasaki/bar_silence_profile.png",
   barDateSilenceHeroTurnMin: 4,

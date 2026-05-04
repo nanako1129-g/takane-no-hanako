@@ -88,10 +88,16 @@ export type CharacterConfig = {
   teaDatePortraitSrc?: string;
   /** true のとき画面上部の立ち絵ストリップを隠す（複合背景で人物が被る場合など）。吹き出しアバターには teaDatePortraitSrc がそのまま使われる */
   teaDateHidePortraitStrip?: boolean;
-  /** バー個室・誰もいない状態の背景（`barDateWithCharacterBackgroundSrc` と併せて順にフェード）。未設定で相手のみ指定した場合は単一背景として表示 */
-  barDateEmptyBackgroundSrc?: string;
   /** バー個室・相手入室後の背景 */
   barDateWithCharacterBackgroundSrc?: string;
+  /**
+   * バーシーン最初に表示する「到着・着席」画像。
+   * 設定すると入場直後はこの画像が手前に表示され、1ターン会話後に
+   * `barDateWithCharacterBackgroundSrc` へクロスフェードする。
+   */
+  barDateArrivalSrc?: string;
+  /** バー個室・誰もいない状態の背景（`barDateWithCharacterBackgroundSrc` と併せて順にフェード）。未設定で相手のみ指定した場合は単一背景として表示 */
+  barDateEmptyBackgroundSrc?: string;
   /** バー入室前の場所テロップ／未設定時は共通デフォルト */
   barDateLocationTelop?: string;
   /**
