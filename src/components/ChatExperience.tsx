@@ -1529,22 +1529,11 @@ export default function ChatExperience({
               🌃 一緒に飲みに行く
             </button>
           ) : null}
-          {postEnding && sceneState.mode === "line" ? (
-            <button
-              type="button"
-              onClick={() => {
-                if (bgmEnabled) { try { const se = new Audio("/audio/ui-click.mp3"); se.volume = 0.5; void se.play(); } catch { /* ignore */ } }
-                enterOvernightStayScene();
-              }}
-              disabled={isLoading || proposalPending || venueUiOpen}
-              className="flex w-full items-center justify-center rounded-xl border-2 border-fuchsia-300/80 bg-gradient-to-b from-fuchsia-50/95 to-white px-4 py-3.5 text-sm font-semibold tracking-wide text-fuchsia-900 shadow-[0_1px_0_rgba(0,0,0,0.06)] transition hover:border-fuchsia-400 hover:from-fuchsia-50 hover:to-fuchsia-50/80 disabled:opacity-50"
-            >
-              🌙 お泊まりする
-            </button>
-          ) : null}
           <DateInviteButtons
             progress={dateProgress}
             onInvite={(t) => void handleInvite(t)}
+            showOvernightStay={postEnding && sceneState.mode === "line"}
+            onOvernightStay={enterOvernightStayScene}
             disabled={
               isLoading ||
               proposalPending ||

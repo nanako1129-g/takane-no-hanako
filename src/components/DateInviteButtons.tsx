@@ -10,10 +10,18 @@ import { useBgmGlobalEnabled } from "@/components/BgmPreferenceProvider";
 type Props = {
   progress: DateProgress;
   onInvite: (type: DateInviteType) => void;
+  onOvernightStay?: () => void;
+  showOvernightStay?: boolean;
   disabled?: boolean;
 };
 
-export function DateInviteButtons({ progress, onInvite, disabled }: Props) {
+export function DateInviteButtons({
+  progress,
+  onInvite,
+  onOvernightStay,
+  showOvernightStay = false,
+  disabled,
+}: Props) {
   const showTea = canShowTeaButton(progress);
   const showDrink = canShowDrinkButton(progress);
   const bgmEnabled = useBgmGlobalEnabled();
@@ -27,7 +35,7 @@ export function DateInviteButtons({ progress, onInvite, disabled }: Props) {
     } catch { /* ignore */ }
   };
 
-  if (!showTea && !showDrink) return null;
+  if (!showTea && !showDrink && !showOvernightStay) return null;
 
   return (
     <div className="animate-fade-portrait flex gap-2 border-t border-rose-100 bg-rose-50/50 px-3 py-2">
@@ -59,6 +67,19 @@ export function DateInviteButtons({ progress, onInvite, disabled }: Props) {
               ×{progress.drinkCount}
             </span>
           )}
+        </button>
+      )}
+      {showOvernightStay && onOvernightStay && (
+        <button
+          type="button"
+          onClick={() => {
+            playClick();
+            onOvernightStay();
+          }}
+          disabled={disabled}
+          className="flex items-center gap-1 rounded-full border border-rose-400 bg-white px-4 py-2 text-sm font-medium text-rose-700 transition hover:bg-rose-100 disabled:opacity-50"
+        >
+          🌙 お泊まりする
         </button>
       )}
     </div>
