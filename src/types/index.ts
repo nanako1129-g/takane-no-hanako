@@ -235,7 +235,7 @@ export type AnalysisResult = {
 };
 
 /** メイン画面上の対話フェーズ（LINE／店シーン）。`ChatMode.scene` の演出用とは別 */
-export type SceneMode = "line" | "cafe" | "bar" | "proposal";
+export type SceneMode = "line" | "cafe" | "bar" | "overnight" | "proposal";
 
 /** 店シーン内のターンレンジ（ユーザー1往復≒1増分）の既定値 */
 export const SCENE_TURN_LIMITS = {
@@ -266,6 +266,16 @@ export function venueSceneState(venue: "cafe" | "bar"): SceneState {
     turnsInScene: 0,
     minTurns: SCENE_TURN_LIMITS.minTurns,
     maxTurns: SCENE_TURN_LIMITS.maxTurns,
+  };
+}
+
+/** お泊まり翌朝シーン用 SceneState（ターン不要） */
+export function overnightSceneState(): SceneState {
+  return {
+    mode: "overnight",
+    turnsInScene: 0,
+    minTurns: 0,
+    maxTurns: 0,
   };
 }
 

@@ -25,6 +25,7 @@ import { StampPicker } from "@/components/StampPicker";
 import { UnlockToast } from "@/components/UnlockToast";
 import { usePlayerProfileState } from "@/components/PlayerNameProvider";
 import { BarVenuePanel } from "@/components/BarVenuePanel";
+import { OvernightStayPanel } from "@/components/OvernightStayPanel";
 import { TeaDateCafePanel } from "@/components/TeaDateCafePanel";
 import { ProposalDatePanel } from "@/components/ProposalDatePanel";
 import {
@@ -72,7 +73,12 @@ import type {
   SceneEvent,
   SceneState,
 } from "@/types";
-import { lineSceneState, proposalSceneState, venueSceneState } from "@/types";
+import {
+  lineSceneState,
+  overnightSceneState,
+  proposalSceneState,
+  venueSceneState,
+} from "@/types";
 
 export interface ChatExperienceProps {
   charId: string;
@@ -109,29 +115,6 @@ const DEFAULT_BAR_DATE_FAREWELL_LINE =
 
 /** バー退店〜LINE復帰で加算する好感度（`CharacterConfig.barDateAffinityBonusOnLeave` が無いとき） */
 const DEFAULT_BAR_LEAVE_AFFINITY_BONUS = 12;
-const OVERNIGHT_BLACKOUT_MS = 5000;
-const OVERNIGHT_MORNING_HERO_SRC = "/characters/hanasaki/morning_after.png";
-const OVERNIGHT_BLACKOUT_SE_SRC = "/audio/overnight-blackout.mp3";
-const POST_ENDING_OVERNIGHT_TRIGGER_RE =
-  /(今夜.*泊まりたい|泊まりたい|お泊まり|旅行に行きたい|旅行行きたい|一緒に旅行)/;
-
-const OVERNIGHT_INVITE_LINES = [
-  "……うん、もちろん。今夜うちに来る？\nちゃんと、君を安心させるから。",
-  "いいよ。そう言ってくれて嬉しい。\n今日は、長い夜になりそうだね。",
-];
-
-const OVERNIGHT_MORNING_LINES = [
-  "おはよう。……髪、ちょっと跳ねてるね。\n昨日は、本当に素敵な夜だった。",
-  "おはよう、よく眠れた？\n……昨日の時間、すごく幸せだった。",
-];
-const OVERNIGHT_MORNING_FOLLOWUP_LINES = [
-  "……その寝癖、反則だね。朝から可愛すぎる。",
-  "カーテン越しの光、君に似合うな。見惚れてた。",
-];
-const OVERNIGHT_MORNING_REPLY_TO_USER_LINES = [
-  "おはよう。照れてる君も、ちゃんと好きだよ。",
-  "おはよう。そんな顔されると、もう少し困らせたくなるな。",
-];
 
 const LINE_IDLE_POKE_LINES = [
   "どうしたの？ 無理してない？",
@@ -181,10 +164,6 @@ export default function ChatExperience({
   const [sceneDim, setSceneDim] = useState(false);
   /** エンディングページへの遷移前フェードアウト */
   const [fadingToEnding, setFadingToEnding] = useState(false);
-  const [showOvernightMorningHero, setShowOvernightMorningHero] = useState(false);
-  const [overnightMorningStage, setOvernightMorningStage] = useState<
-    "idle" | "awaitingFirstUser" | "awaitingSecondUser"
-  >("idle");
 
   const [messages, setMessages] = useState<Message[]>([]);
   const messagesRef = useRef<Message[]>([]);
@@ -196,7 +175,6 @@ export default function ChatExperience({
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const overnightBlackoutSeRef = useRef<HTMLAudioElement | null>(null);
 
   const [dateProgress, setDateProgress] =
     useState<DateProgress>(initialDateProgress);
@@ -318,6 +296,7 @@ export default function ChatExperience({
   const venueUiOpen =
     sceneState.mode === "cafe" ||
     sceneState.mode === "bar" ||
+    sceneState.mode === "overnight" ||
     sceneState.mode === "proposal";
 
   /** `npm run dev` または `NEXT_PUBLIC_DEV_TOOLS=1`（ハッカソン即席デモ） */
@@ -507,22 +486,7 @@ export default function ChatExperience({
     const el = scrollRef.current;
     if (!el) return;
     el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
-  }, [messages, sending, showOvernightMorningHero, overnightMorningStage]);
-
-  useEffect(() => {
-    return () => {
-      const se = overnightBlackoutSeRef.current;
-      if (se) {
-        try {
-          se.pause();
-          se.currentTime = 0;
-        } catch {
-          // ignore
-        }
-      }
-      overnightBlackoutSeRef.current = null;
-    };
-  }, []);
+  }, [messages, sending]);
 
   /** 好感度が閾値を超えた最初のタイミング（または復元済みの高好感度セーブ時）での一度きり独白 */
   useEffect(() => {
@@ -805,166 +769,9 @@ export default function ChatExperience({
         content: trimmed,
         createdAt: Date.now(),
       };
-      if (overnightMorningStage === "awaitingFirstUser") {
-        setError(null);
-        setSending(true);
-        setMessages((prev) => [...prev, userMsg]);
-        try {
-          const wait = assistantTypingDelayMs(character, affinityRef.current);
-          if (wait > 0) {
-            await sleepMs(wait);
-          }
-          const reply =
-            OVERNIGHT_MORNING_REPLY_TO_USER_LINES[
-              Math.floor(
-                Math.random() * OVERNIGHT_MORNING_REPLY_TO_USER_LINES.length
-              )
-            ] ?? OVERNIGHT_MORNING_REPLY_TO_USER_LINES[0];
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: newId(),
-              role: "assistant",
-              content: reply,
-              createdAt: Date.now(),
-            },
-          ]);
-          setCompanionActivityEpoch((e) => e + 1);
-          setOvernightMorningStage("awaitingSecondUser");
-        } finally {
-          setSending(false);
-        }
-        return;
-      }
-
-      if (overnightMorningStage === "awaitingSecondUser") {
-        setShowOvernightMorningHero(false);
-        setOvernightMorningStage("idle");
-      }
-
-      const shouldPlayOvernightCut =
-        postEnding &&
-        sceneState.mode === "line" &&
-        !proposalPending &&
-        !venueUiOpen &&
-        POST_ENDING_OVERNIGHT_TRIGGER_RE.test(trimmed);
-
-      if (shouldPlayOvernightCut) {
-        setError(null);
-        setSending(true);
-        setMessages((prev) => [...prev, userMsg]);
-        try {
-          const wait = assistantTypingDelayMs(character, affinityRef.current);
-          if (wait > 0) {
-            await sleepMs(wait);
-          }
-          const inviteLine =
-            OVERNIGHT_INVITE_LINES[
-              Math.floor(Math.random() * OVERNIGHT_INVITE_LINES.length)
-            ] ?? OVERNIGHT_INVITE_LINES[0];
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: newId(),
-              role: "assistant",
-              content: inviteLine,
-              createdAt: Date.now(),
-            },
-          ]);
-          if (bgmEnabled) {
-            try {
-              const current = overnightBlackoutSeRef.current;
-              if (current) {
-                current.pause();
-                current.currentTime = 0;
-              }
-              const se = new Audio(OVERNIGHT_BLACKOUT_SE_SRC);
-              se.volume = 0.55;
-              se.loop = false;
-              overnightBlackoutSeRef.current = se;
-              void se.play();
-            } catch {
-              // ignore
-            }
-          }
-          setSceneDim(true);
-          await sleepMs(OVERNIGHT_BLACKOUT_MS);
-          const current = overnightBlackoutSeRef.current;
-          if (current) {
-            try {
-              current.pause();
-              current.currentTime = 0;
-            } catch {
-              // ignore
-            }
-            overnightBlackoutSeRef.current = null;
-          }
-          setSceneDim(false);
-          setShowOvernightMorningHero(true);
-
-          const morningLine =
-            OVERNIGHT_MORNING_LINES[
-              Math.floor(Math.random() * OVERNIGHT_MORNING_LINES.length)
-            ] ?? OVERNIGHT_MORNING_LINES[0];
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: newId(),
-              role: "assistant",
-              content: morningLine,
-              createdAt: Date.now(),
-            },
-          ]);
-          const secondWait = Math.max(
-            420,
-            Math.round(assistantTypingDelayMs(character, affinityRef.current) * 0.7)
-          );
-          await sleepMs(secondWait);
-          const followup =
-            OVERNIGHT_MORNING_FOLLOWUP_LINES[
-              Math.floor(Math.random() * OVERNIGHT_MORNING_FOLLOWUP_LINES.length)
-            ] ?? OVERNIGHT_MORNING_FOLLOWUP_LINES[0];
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: newId(),
-              role: "assistant",
-              content: followup,
-              createdAt: Date.now(),
-            },
-          ]);
-          setOvernightMorningStage("awaitingFirstUser");
-          setAffinityPulse({ delta: 2, timestamp: Date.now() });
-          setAffinity((prev) => clampAffinity(prev + 2, affinityMax));
-          setDateProgress((prev) =>
-            evaluateUnlocks(
-              clampAffinity(affinityRef.current + 2, affinityMax),
-              prev,
-              character
-            )
-          );
-          setCompanionActivityEpoch((e) => e + 1);
-        } finally {
-          setSending(false);
-        }
-        return;
-      }
-
       await sendUserRound(userMsg, opts);
     },
-    [
-      affinityMax,
-      bgmEnabled,
-      character,
-      postEnding,
-      proposalPending,
-      sceneState.mode,
-      sendUserRound,
-      setAffinity,
-      setDateProgress,
-      overnightMorningStage,
-      venueUiOpen,
-    ]
+    [bgmEnabled, sendUserRound]
   );
 
   const handleStampPick = useCallback(
@@ -1048,7 +855,6 @@ export default function ChatExperience({
       sending ||
       proposalPending ||
       venueUiOpen ||
-      overnightMorningStage !== "idle" ||
       sceneState.mode !== "line" ||
       !historyHydrated ||
       !affinityHydrated,
@@ -1087,19 +893,7 @@ export default function ChatExperience({
     setSceneState(lineSceneState());
 
     setPostEnding(false);
-    setShowOvernightMorningHero(false);
-    setOvernightMorningStage("idle");
     setCompanionActivityEpoch(0);
-    const current = overnightBlackoutSeRef.current;
-    if (current) {
-      try {
-        current.pause();
-        current.currentTime = 0;
-      } catch {
-        // ignore
-      }
-      overnightBlackoutSeRef.current = null;
-    }
 
     if (typeof window !== "undefined") {
       window.localStorage.removeItem(`${PROPOSAL_PREFIX}${character.id}`);
@@ -1273,6 +1067,20 @@ export default function ChatExperience({
       }
     );
   }, [setAwaitingDrinkOuting, enterSceneWithTitleCard, character.barDateLocationName]);
+
+  const enterOvernightStayScene = useCallback(() => {
+    enterSceneWithTitleCard(
+      { emoji: "🌙", name: "彼の部屋", sub: "— お泊まりの夜 —" },
+      () => {
+        conversationEpochRef.current += 1;
+        setTeaDateSessionKey((k) => k + 1);
+        setSceneState(overnightSceneState());
+        setSending(false);
+        setError(null);
+        setAffinityPulse(null);
+      }
+    );
+  }, [enterSceneWithTitleCard]);
 
   const enterProposalDateScene = useCallback(() => {
     const name = character.proposalDateLocationName;
@@ -1452,6 +1260,13 @@ export default function ChatExperience({
   }, [character, userProfile?.name]);
 
   const interruptTeaDateCafeWithoutProgress = useCallback(() => {
+    conversationEpochRef.current += 1;
+    setSceneState(lineSceneState());
+    setTeaDateSessionKey((k) => k + 1);
+    window.setTimeout(() => setSceneDim(false), 380);
+  }, []);
+
+  const finishOvernightStayAndReturnLine = useCallback(() => {
     conversationEpochRef.current += 1;
     setSceneState(lineSceneState());
     setTeaDateSessionKey((k) => k + 1);
@@ -1653,20 +1468,6 @@ export default function ChatExperience({
               />
             ))
           )}
-          {showOvernightMorningHero || overnightMorningStage !== "idle" ? (
-            <div className="mx-auto w-full max-w-[380px] overflow-hidden rounded-2xl border border-rose-100 bg-white/70 p-2 shadow-sm">
-              <div className="relative mx-auto h-[220px] w-full sm:h-[280px]">
-                <Image
-                  src={OVERNIGHT_MORNING_HERO_SRC}
-                  alt="朝の花咲さん"
-                  fill
-                  sizes="(max-width: 640px) 92vw, 380px"
-                  className="object-contain object-center scale-[0.9] sm:scale-100"
-                  priority
-                />
-              </div>
-            </div>
-          ) : null}
           {sending && (
             <div className="flex items-center gap-2 px-1 text-xs text-slate-400">
               <span className="inline-flex gap-1">
@@ -1726,6 +1527,19 @@ export default function ChatExperience({
               className="flex w-full items-center justify-center rounded-xl border-2 border-indigo-400/80 bg-gradient-to-b from-indigo-950/95 via-slate-900 to-indigo-950 px-4 py-3.5 text-sm font-semibold tracking-wide text-rose-50 shadow-[0_1px_0_rgba(0,0,0,0.2)] transition hover:border-rose-300/70 disabled:opacity-50"
             >
               🌃 一緒に飲みに行く
+            </button>
+          ) : null}
+          {postEnding && sceneState.mode === "line" ? (
+            <button
+              type="button"
+              onClick={() => {
+                if (bgmEnabled) { try { const se = new Audio("/audio/ui-click.mp3"); se.volume = 0.5; void se.play(); } catch { /* ignore */ } }
+                enterOvernightStayScene();
+              }}
+              disabled={isLoading || proposalPending || venueUiOpen}
+              className="flex w-full items-center justify-center rounded-xl border-2 border-fuchsia-300/80 bg-gradient-to-b from-fuchsia-50/95 to-white px-4 py-3.5 text-sm font-semibold tracking-wide text-fuchsia-900 shadow-[0_1px_0_rgba(0,0,0,0.06)] transition hover:border-fuchsia-400 hover:from-fuchsia-50 hover:to-fuchsia-50/80 disabled:opacity-50"
+            >
+              🌙 お泊まりする
             </button>
           ) : null}
           <DateInviteButtons
@@ -1822,6 +1636,18 @@ export default function ChatExperience({
           onInterruptBarDate={interruptBarVenueWithoutProgress}
           onBeforeLeave={() => setSceneDim(true)}
           postEndingCouplePlay={postEnding}
+        />
+      ) : null}
+      {sceneState.mode === "overnight" ? (
+        <OvernightStayPanel
+          key={teaDateSessionKey}
+          character={character}
+          affinity={affinity}
+          affinityPulse={affinityPulse}
+          portraitSrc={teaDatePortraitSrc}
+          onAffinityDelta={adjustAffinityFromCafeDelta}
+          onFinishedOvernightStay={finishOvernightStayAndReturnLine}
+          onBeforeLeave={() => setSceneDim(true)}
         />
       ) : null}
       {sceneState.mode === "proposal" ? (
